@@ -161,7 +161,13 @@ public class MainActivity extends AppCompatActivity {
     private void fetchAndRegisterFCMToken() {
         FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
             if (!task.isSuccessful()) {
-                Log.w(TAG, "Fetching FCM registration token failed", task.getException());
+                Log.e(TAG, "Fetching FCM registration token failed", task.getException());
+                String errorMsg = task.getException() != null ? task.getException().getMessage() : "Unknown Firebase Error";
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Firebase: " + errorMsg + ". Fallback active.", Toast.LENGTH_LONG).show());
+                
+                // Fallback to a mock token so connection and web dashboard become active for UI testing
+                String mockToken = "mock_token_" + prefs.getString("email", "device");
+                registerTokenOnBackend(mockToken);
                 return;
             }
 
