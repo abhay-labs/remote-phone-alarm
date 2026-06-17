@@ -289,6 +289,9 @@ async function triggerAlarm() {
     return;
   }
 
+  const soundSelect = document.getElementById('sound-select');
+  const selectedSound = soundSelect ? soundSelect.value : 'default';
+
   showFeedback('Sending ring request...', 'info');
 
   try {
@@ -298,7 +301,10 @@ async function triggerAlarm() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.adminToken}`
       },
-      body: JSON.stringify({ email: config.adminEmail })
+      body: JSON.stringify({ 
+        email: config.adminEmail,
+        sound: selectedSound 
+      })
     });
 
     const json = await response.json();

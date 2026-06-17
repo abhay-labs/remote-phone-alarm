@@ -100,7 +100,7 @@ public class AlarmService extends Service {
             Log.i(TAG, "Stop action received in service");
             
             // Turn off alarm locally
-            handleAlarmStateChange(false);
+            handleAlarmStateChange(false, "default");
             
             // Update backend that we stopped it
             sendStopRequestToBackend();
@@ -110,7 +110,8 @@ public class AlarmService extends Service {
 
         if ("TRIGGER_ALARM".equals(action)) {
             Log.i(TAG, "Trigger action received in service via FCM");
-            handleAlarmStateChange(true);
+            String sound = intent != null ? intent.getStringExtra("sound") : "default";
+            handleAlarmStateChange(true, sound != null ? sound : "default");
             return START_STICKY;
         }
 
@@ -126,7 +127,7 @@ public class AlarmService extends Service {
         return START_STICKY;
     }
 
-    private void playAlarm() {
+    private void playAlarm(String sound) {
         try {
             // Save original volume and ringer mode
             originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
@@ -159,16 +160,17 @@ public class AlarmService extends Service {
             }
 
             // Get custom selected alarm sound Uri or fallback to default
-            SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
-            String customAudioUriStr = prefs.getString("custom_alarm_uri", null);
             Uri alertUri = null;
-            if (customAudioUriStr != null) {
-                try {
-                    alertUri = Uri.parse(customAudioUriStr);
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to parse custom alarm URI", e);
-                }
+            if ("spaceship".equalsIgnoreCase(sound)) {
+                alertUri = Uri.parse("https://actions.google.com/sounds/v1/alarms/spaceship_alarm.ogg");
+            } else if ("digital".equalsIgnoreCase(sound)) {
+                alertUri = Uri.parse("https://actions.google.com/sounds/v1/alarms/dosimeter_alarm.ogg");
+            } else if ("bell".equalsIgnoreCase(sound)) {
+                alertUri = Uri.parse("https://actions.google.com/sounds/v1/alarms/medium_bell_ringing_near.ogg");
+            } else if ("bugle".equalsIgnoreCase(sound)) {
+                alertUri = Uri.parse("https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg");
             }
+
             if (alertUri == null) {
                 alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
             }
@@ -375,9 +377,10 @@ public class AlarmService extends Service {
                     if (json.getBoolean("success")) {
                         org.json.JSONObject data = json.getJSONObject("data");
                         boolean serverAlarmActive = data.getBoolean("alarmActive");
+                        String alarmSound = data.optString("alarmSound", "default");
 
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                            handleAlarmStateChange(serverAlarmActive);
+                            handleAlarmStateChange(serverAlarmActive, alarmSound);
                         });
                     }
                 } catch (org.json.JSONException e) {
@@ -387,13 +390,13 @@ public class AlarmService extends Service {
         });
     }
 
-    private void handleAlarmStateChange(boolean serverAlarmActive) {
+    private void handleAlarmStateChange(boolean serverAlarmActive, String sound) {
         if (serverAlarmActive && !isAlarmPlaying) {
-            Log.i(TAG, "Siren triggered from server command");
+            Log.i(TAG, "Siren triggered from server command with sound: " + sound);
             isAlarmPlaying = true;
             
             // Play Siren
-            playAlarm();
+            playAlarm(sound);
             
             // Start Flashlight
             startBlinking();

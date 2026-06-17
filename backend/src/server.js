@@ -179,7 +179,7 @@ app.post('/api/location', (req, res) => {
 
 // 4. Trigger Alarm by Email (called by Web Admin Panel)
 app.post('/api/trigger', authenticateAdmin, async (req, res) => {
-  const { email } = req.body;
+  const { email, sound } = req.body;
   if (!email) {
     return res.status(400).json({ success: false, error: 'Email is required to trigger alarm' });
   }
@@ -193,10 +193,11 @@ app.post('/api/trigger', authenticateAdmin, async (req, res) => {
   }
 
   userState.alarmActive = true;
+  userState.alarmSound = sound || 'default';
   userState.lastUpdated = new Date().toISOString();
   writeDb(db);
 
-  console.log(`🚀 Triggering alarm command for email: ${normalizedEmail}...`);
+  console.log(`🚀 Triggering alarm command for email: ${normalizedEmail} with sound ${sound}...`);
 
   if (!isFirebaseInitialized) {
     return res.json({
@@ -210,6 +211,7 @@ app.post('/api/trigger', authenticateAdmin, async (req, res) => {
   const message = {
     data: {
       command: 'TRIGGER_ALARM',
+      sound: sound || 'default',
       timestamp: new Date().toISOString()
     },
     token: userState.token,

@@ -36,14 +36,10 @@ import okhttp3.Response;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final int PERMISSION_REQUEST_CODE = 101;
-    private static final int RINGTONE_PICKER_REQUEST_CODE = 999;
-
     private EditText backendUrlInput;
     private EditText emailInput;
     private EditText adminTokenInput;
     private TextView permissionStatusText;
-    private TextView customAudioText;
-    private Button selectSoundBtn;
     private SharedPreferences prefs;
     private final OkHttpClient httpClient = new OkHttpClient();
 
@@ -59,44 +55,9 @@ public class MainActivity extends AppCompatActivity {
         emailInput = findViewById(R.id.email_input);
         adminTokenInput = findViewById(R.id.admin_token_input);
         permissionStatusText = findViewById(R.id.permission_status);
-        customAudioText = findViewById(R.id.custom_audio_text);
-        selectSoundBtn = findViewById(R.id.select_sound_btn);
         Button saveBtn = findViewById(R.id.save_btn);
         Button stopAlarmBtn = findViewById(R.id.stop_alarm_btn);
         Button requestDndBtn = findViewById(R.id.request_dnd_btn);
-
-        // Load saved custom alarm URI if any
-        String savedAudioUri = prefs.getString("custom_alarm_uri", null);
-        if (savedAudioUri != null) {
-            try {
-                android.net.Uri uri = android.net.Uri.parse(savedAudioUri);
-                android.media.Ringtone ringtone = android.media.RingtoneManager.getRingtone(this, uri);
-                if (ringtone != null) {
-                    customAudioText.setText("Current: " + ringtone.getTitle(this));
-                } else {
-                    customAudioText.setText("Current: Custom Sound");
-                }
-            } catch (Exception e) {
-                customAudioText.setText("Current: Custom Sound");
-            }
-        } else {
-            customAudioText.setText("Current: Default Alarm");
-        }
-
-        // Setup custom sound selector click listener
-        selectSoundBtn.setOnClickListener(v -> {
-            Intent ringtoneIntent = new Intent(android.media.RingtoneManager.ACTION_RINGTONE_PICKER);
-            ringtoneIntent.putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TYPE, android.media.RingtoneManager.TYPE_ALARM);
-            ringtoneIntent.putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Alarm Sound 🎵");
-            
-            String currentUriStr = prefs.getString("custom_alarm_uri", null);
-            if (currentUriStr != null) {
-                ringtoneIntent.putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, android.net.Uri.parse(currentUriStr));
-            }
-            ringtoneIntent.putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true);
-            ringtoneIntent.putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false);
-            startActivityForResult(ringtoneIntent, RINGTONE_PICKER_REQUEST_CODE);
-        });
 
         // Hardcode configurations as requested
         final String lockUrl = "https://remote-phone-alarm.onrender.com";
@@ -336,27 +297,6 @@ public class MainActivity extends AppCompatActivity {
                 permissionStatusText.setText("Status: Permissions denied");
                 permissionStatusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark));
                 Toast.makeText(this, "Permissions denied. Some functions might not operate correctly.", Toast.LENGTH_LONG).show();
-            }
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == RINGTONE_PICKER_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
-            android.net.Uri uri = data.getParcelableExtra(android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
-            if (uri != null) {
-                String uriStr = uri.toString();
-                prefs.edit().putString("custom_alarm_uri", uriStr).apply();
-                
-                try {
-                    android.media.Ringtone ringtone = android.media.RingtoneManager.getRingtone(this, uri);
-                    String title = (ringtone != null) ? ringtone.getTitle(this) : "Custom Sound";
-                    customAudioText.setText("Current: " + title);
-                } catch (Exception e) {
-                    customAudioText.setText("Current: Custom Sound");
-                }
-                Toast.makeText(this, "Alarm sound updated!", Toast.LENGTH_SHORT).show();
             }
         }
     }

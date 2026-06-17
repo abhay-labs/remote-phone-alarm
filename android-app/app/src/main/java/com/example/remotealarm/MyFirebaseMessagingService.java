@@ -53,7 +53,8 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
             if ("TRIGGER_ALARM".equalsIgnoreCase(command)) {
                 Log.i(TAG, "Trigger Alarm command received via FCM");
-                triggerAlarmService();
+                String sound = data.get("sound");
+                triggerAlarmService(sound != null ? sound : "default");
             } else if ("STOP_ALARM".equalsIgnoreCase(command)) {
                 Log.i(TAG, "Stop Alarm command received via FCM");
                 stopAlarmService();
@@ -61,8 +62,10 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         }
     }
 
-    private void triggerAlarmService() {
+    private void triggerAlarmService(String sound) {
         Intent serviceIntent = new Intent(this, AlarmService.class);
+        serviceIntent.setAction("TRIGGER_ALARM");
+        serviceIntent.putExtra("sound", sound);
         
         // Start the service in Foreground
         try {
