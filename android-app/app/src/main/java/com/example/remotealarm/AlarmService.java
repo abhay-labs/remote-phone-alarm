@@ -161,7 +161,9 @@ public class AlarmService extends Service {
 
             // Get custom selected alarm sound Uri or fallback to default
             Uri alertUri = null;
-            if ("spaceship".equalsIgnoreCase(sound)) {
+            if (sound != null && (sound.startsWith("http://") || sound.startsWith("https://"))) {
+                alertUri = Uri.parse(sound);
+            } else if ("spaceship".equalsIgnoreCase(sound)) {
                 alertUri = Uri.parse("https://actions.google.com/sounds/v1/alarms/spaceship_alarm.ogg");
             } else if ("digital".equalsIgnoreCase(sound)) {
                 alertUri = Uri.parse("https://actions.google.com/sounds/v1/alarms/dosimeter_alarm.ogg");

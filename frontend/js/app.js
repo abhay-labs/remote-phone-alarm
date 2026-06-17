@@ -3,7 +3,8 @@ let config = {
   serverUrl: localStorage.getItem('server_url') || window.location.origin || 'http://localhost:3000',
   adminToken: localStorage.getItem('admin_token') || 'Aryanayush@1',
   adminEmail: localStorage.getItem('admin_email') || 'user@example.com',
-  sound: localStorage.getItem('selected_sound') || 'default'
+  sound: localStorage.getItem('selected_sound') || 'default',
+  customSoundUrl: localStorage.getItem('custom_sound_url') || ''
 };
 
 // If loaded locally via file://, fallback to default port 3000
@@ -44,6 +45,9 @@ const settingsForm = document.getElementById('settings-form');
 const serverUrlInput = document.getElementById('server-url-input');
 const adminTokenInput = document.getElementById('admin-token-input');
 const adminEmailInput = document.getElementById('admin-email-input');
+const customFileGroup = document.getElementById('custom-file-group');
+const customSoundFile = document.getElementById('custom-sound-file');
+const uploadStatus = document.getElementById('upload-status');
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
@@ -53,7 +57,24 @@ document.addEventListener('DOMContentLoaded', () => {
   adminEmailInput.value = config.adminEmail;
   const soundSelect = document.getElementById('sound-select');
   if (soundSelect) {
-    soundSelect.value = config.sound;
+    if (config.sound.startsWith('http://') || config.sound.startsWith('https://') || config.sound === 'custom') {
+      soundSelect.value = 'custom';
+      customFileGroup.style.display = 'block';
+      if (config.customSoundUrl) {
+        uploadStatus.textContent = `Active file: ${config.customSoundUrl.split('/').pop()}`;
+      }
+    } else {
+      soundSelect.value = config.sound;
+      customFileGroup.style.display = 'none';
+    }
+
+    soundSelect.addEventListener('change', (e) => {
+      if (e.target.value === 'custom') {
+        customFileGroup.style.display = 'block';
+      } else {
+        customFileGroup.style.display = 'none';
+      }
+    });
   }
 
   // Event Listeners
@@ -80,7 +101,16 @@ function openModal() {
   adminEmailInput.value = config.adminEmail;
   const soundSelect = document.getElementById('sound-select');
   if (soundSelect) {
-    soundSelect.value = config.sound;
+    if (config.sound.startsWith('http://') || config.sound.startsWith('https://') || config.sound === 'custom') {
+      soundSelect.value = 'custom';
+      customFileGroup.style.display = 'block';
+      if (config.customSoundUrl) {
+        uploadStatus.textContent = `Active file: ${config.customSoundUrl.split('/').pop()}`;
+      }
+    } else {
+      soundSelect.value = config.sound;
+      customFileGroup.style.display = 'none';
+    }
   }
   settingsModal.classList.add('active');
 }
@@ -89,13 +119,62 @@ function closeModal() {
   settingsModal.classList.remove('active');
 }
 
-function saveSettings(e) {
+async function saveSettings(e) {
   e.preventDefault();
-  config.serverUrl = serverUrlInput.value.trim().replace(/\/$/, ""); // Remove trailing slash
-  config.adminToken = adminTokenInput.value.trim();
-  config.adminEmail = adminEmailInput.value.trim().toLowerCase();
+  const targetServerUrl = serverUrlInput.value.trim().replace(/\/$/, ""); // Remove trailing slash
+  const targetAdminToken = adminTokenInput.value.trim();
+  const targetAdminEmail = adminEmailInput.value.trim().toLowerCase();
   const soundSelect = document.getElementById('sound-select');
-  config.sound = soundSelect ? soundSelect.value : 'default';
+  let selectedSound = soundSelect ? soundSelect.value : 'default';
+
+  if (selectedSound === 'custom') {
+    if (customSoundFile.files && customSoundFile.files[0]) {
+      const file = customSoundFile.files[0];
+      uploadStatus.textContent = 'Uploading sound file... ⏳';
+      uploadStatus.style.color = '#f59e0b';
+      
+      try {
+        const fileExt = file.name.split('.').pop();
+        const response = await fetch(`${targetServerUrl}/api/upload-sound?email=${encodeURIComponent(targetAdminEmail)}&ext=${fileExt}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${targetAdminToken}`,
+            'Content-Type': file.type
+          },
+          body: file
+        });
+        
+        const json = await response.json();
+        if (!json.success) {
+          throw new Error(json.error || 'Upload failed');
+        }
+        
+        // Save the full URL of the uploaded custom sound
+        config.customSoundUrl = targetServerUrl + json.url;
+        localStorage.setItem('custom_sound_url', config.customSoundUrl);
+        selectedSound = config.customSoundUrl;
+        uploadStatus.textContent = `Uploaded successfully! 🎉 (${file.name})`;
+        uploadStatus.style.color = '#10b981';
+      } catch (err) {
+        console.error('File upload error:', err);
+        uploadStatus.textContent = `Upload failed: ${err.message} ❌`;
+        uploadStatus.style.color = '#f43f5e';
+        return; // Prevent settings from saving or closing modal on error
+      }
+    } else if (config.customSoundUrl) {
+      // Use previously uploaded sound URL
+      selectedSound = config.customSoundUrl;
+    } else {
+      uploadStatus.textContent = 'Please select a file to upload first! ❌';
+      uploadStatus.style.color = '#f43f5e';
+      return; // Prevent save
+    }
+  }
+
+  config.serverUrl = targetServerUrl;
+  config.adminToken = targetAdminToken;
+  config.adminEmail = targetAdminEmail;
+  config.sound = selectedSound;
 
   localStorage.setItem('server_url', config.serverUrl);
   localStorage.setItem('admin_token', config.adminToken);

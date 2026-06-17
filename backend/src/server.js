@@ -14,8 +14,15 @@ const DB_FILE = path.join(__dirname, '..', 'db.json');
 app.use(cors());
 app.use(express.json());
 
+// Ensure uploads folder exists
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Helper to read database from JSON file
 function readDb() {
@@ -279,6 +286,29 @@ app.post('/api/stop', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error(`❌ Failed to send FCM stop message to ${normalizedEmail}:`, error);
     res.status(500).json({ success: false, error: `FCM Error: ${error.message}` });
+  }
+});
+
+// 6. Upload Custom Alarm Sound (called by Web Admin Panel)
+app.post('/api/upload-sound', authenticateAdmin, express.raw({ type: 'audio/*', limit: '10mb' }), (req, res) => {
+  const { email, ext } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email query parameter is required' });
+  }
+
+  const fileExt = ext || 'mp3';
+  const safeEmail = email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const filename = `${safeEmail}_custom.${fileExt}`;
+  const filePath = path.join(UPLOADS_DIR, filename);
+
+  try {
+    fs.writeFileSync(filePath, req.body);
+    const fileUrl = `/uploads/${filename}`;
+    console.log(`🎵 Custom sound uploaded for ${email} saved as ${filename}`);
+    res.json({ success: true, url: fileUrl });
+  } catch (err) {
+    console.error('Failed to save uploaded audio file:', err);
+    res.status(500).json({ success: false, error: 'Failed to save uploaded audio file' });
   }
 });
 

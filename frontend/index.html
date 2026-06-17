@@ -152,7 +152,14 @@
               <option value="digital">Digital Alarm 🔊</option>
               <option value="bell">Medium Bell Ringing 🔔</option>
               <option value="bugle">Bugle Tune 🎺</option>
+              <option value="custom">Upload Custom File 📁</option>
             </select>
+          </div>
+
+          <div class="form-group" id="custom-file-group" style="display: none; margin-top: 10px;">
+            <label for="custom-sound-file" class="sound-label"><i class="fa-solid fa-file-audio"></i> Upload Custom Audio (.mp3, .ogg, .wav)</label>
+            <input type="file" id="custom-sound-file" accept="audio/*">
+            <small id="upload-status" style="color: var(--text-muted); margin-top: 4px; display: block;"></small>
           </div>
 
           <div class="form-group">
