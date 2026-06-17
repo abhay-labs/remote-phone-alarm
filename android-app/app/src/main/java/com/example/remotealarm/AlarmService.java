@@ -158,8 +158,20 @@ public class AlarmService extends Service {
                 Log.e(TAG, "DND is active, failed to set volume without permission override", se);
             }
 
-            // Get default alarm sound Uri
-            Uri alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            // Get custom selected alarm sound Uri or fallback to default
+            SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+            String customAudioUriStr = prefs.getString("custom_alarm_uri", null);
+            Uri alertUri = null;
+            if (customAudioUriStr != null) {
+                try {
+                    alertUri = Uri.parse(customAudioUriStr);
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to parse custom alarm URI", e);
+                }
+            }
+            if (alertUri == null) {
+                alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            }
             if (alertUri == null) {
                 alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
             }
