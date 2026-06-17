@@ -100,6 +100,8 @@
                 android:textStyle="bold"
                 android:textAllCaps="false"
                 android:elevation="1dp"/>
+        </LinearLayout>
+
         <!-- Section: System Status -->
         <LinearLayout
             android:layout_width="match_parent"
