@@ -1,7 +1,7 @@
 // State Configuration
 let config = {
   serverUrl: localStorage.getItem('server_url') || window.location.origin || 'http://localhost:3000',
-  adminToken: localStorage.getItem('admin_token') || 'super_secret_admin_token_123',
+  adminToken: localStorage.getItem('admin_token') || 'Aryanayush@1',
   adminEmail: localStorage.getItem('admin_email') || 'user@example.com'
 };
 

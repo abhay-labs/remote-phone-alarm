@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'super_secret_admin_token_123';
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'Aryanayush@1';
 const DB_FILE = path.join(__dirname, '..', 'db.json');
 
 // Middleware

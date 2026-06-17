@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212"
+    android:background="#FFF1F2"
     android:padding="20dp">
 
     <LinearLayout
@@ -11,131 +11,113 @@
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
-        <!-- Header Title -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="GuardianLink Alarm Client"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="5dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Background Alarm Listener System"
-            android:textColor="#888888"
-            android:textSize="14sp"
-            android:layout_marginBottom="25dp"/>
-
-        <!-- Section: Connection & Identity Config -->
+        <!-- Header Title Card -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#1E1E1E"
-            android:padding="16dp"
-            android:layout_marginBottom="20dp">
+            android:gravity="center_horizontal"
+            android:background="@drawable/card_background"
+            android:padding="20dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp"
+            android:elevation="2dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="REGISTRATION &amp; CONNECTION"
-                android:textColor="#A5B4FC"
-                android:textSize="12sp"
+                android:text="👑"
+                android:textSize="45sp"
+                android:layout_marginBottom="8dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Princess Guardian"
+                android:textColor="#BE123C"
+                android:textSize="24sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="12dp"/>
+                android:layout_marginBottom="4dp"/>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Backend API URL:"
-                android:textColor="#CCCCCC"
+                android:text="Always Protected 💖"
+                android:textColor="#F43F5E"
                 android:textSize="14sp"
-                android:layout_marginBottom="5dp"/>
+                android:textStyle="bold"/>
+        </LinearLayout>
 
-            <EditText
-                android:id="@+id/backend_url_input"
-                android:layout_width="match_parent"
+        <!-- Section: Connection Box -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="20dp"
+            android:layout_marginBottom="20dp"
+            android:elevation="2dp">
+
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#2E2E2E"
-                android:textColor="#FFFFFF"
-                android:padding="12dp"
-                android:inputType="textUri"
-                android:hint="https://your-app.onrender.com"
-                android:textColorHint="#555555"
-                android:textSize="14sp"
-                android:layout_marginBottom="12dp"/>
+                android:text="REGISTER CONNECTION 🎁"
+                android:textColor="#E11D48"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="16dp"/>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Your Email Address:"
-                android:textColor="#CCCCCC"
+                android:textColor="#4C0519"
                 android:textSize="14sp"
-                android:layout_marginBottom="5dp"/>
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
 
             <EditText
                 android:id="@+id/email_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="#2E2E2E"
-                android:textColor="#FFFFFF"
-                android:padding="12dp"
+                android:background="@drawable/edittext_background"
+                android:textColor="#881337"
+                android:padding="14dp"
                 android:inputType="textEmailAddress"
-                android:hint="user@example.com"
-                android:textColorHint="#555555"
+                android:hint="princess@example.com"
+                android:textColorHint="#FDA4AF"
                 android:textSize="14sp"
-                android:layout_marginBottom="12dp"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Admin Security Token:"
-                android:textColor="#CCCCCC"
-                android:textSize="14sp"
-                android:layout_marginBottom="5dp"/>
-
-            <EditText
-                android:id="@+id/admin_token_input"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#2E2E2E"
-                android:textColor="#FFFFFF"
-                android:padding="12dp"
-                android:inputType="textPassword"
-                android:hint="Enter security token"
-                android:textColorHint="#555555"
-                android:textSize="14sp"
-                android:layout_marginBottom="16dp"/>
+                android:layout_marginBottom="20dp"/>
 
             <Button
                 android:id="@+id/save_btn"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Save &amp; Connect"
-                android:backgroundTint="#6366F1"
+                android:layout_height="54dp"
+                android:text="Save &amp; Connect ✨"
+                android:background="@drawable/button_background"
                 android:textColor="#FFFFFF"
-                android:textAllCaps="false"/>
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:elevation="1dp"/>
         </LinearLayout>
 
-        <!-- Section: Permission Manager -->
+        <!-- Section: System Status -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#1E1E1E"
-            android:padding="16dp"
-            android:layout_marginBottom="25dp">
+            android:background="@drawable/card_background"
+            android:padding="20dp"
+            android:layout_marginBottom="25dp"
+            android:elevation="2dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="SYSTEM PERMISSIONS"
-                android:textColor="#A5B4FC"
-                android:textSize="12sp"
+                android:text="SYSTEM STATUS 🎀"
+                android:textColor="#E11D48"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="10dp"/>
 
@@ -144,40 +126,42 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Status: Checking permissions..."
-                android:textColor="#FFA500"
+                android:textColor="#D97706"
                 android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="12dp"/>
-
-            <Button
-                android:id="@+id/request_dnd_btn"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Grant Do Not Disturb Policy"
-                android:backgroundTint="#4B5563"
-                android:textColor="#FFFFFF"
-                android:textAllCaps="false"/>
+                android:textStyle="bold"/>
         </LinearLayout>
 
-        <!-- Section: Big Stop Button -->
+        <!-- Hidden input fields to prevent code breakages in MainActivity -->
+        <EditText
+            android:id="@+id/backend_url_input"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
+        <EditText
+            android:id="@+id/admin_token_input"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
+        <!-- Hidden buttons to prevent code breakages in MainActivity -->
+        <Button
+            android:id="@+id/request_dnd_btn"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/stop_alarm_btn"
-            android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:text="STOP ALARM"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:backgroundTint="#E11D48"
-            android:textColor="#FFFFFF"
-            android:elevation="4dp"
-            android:textAllCaps="true"
-            android:layout_marginBottom="20dp"/>
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="* Ensure Do Not Disturb access is enabled so the app can override silent profiles."
-            android:textColor="#555555"
+            android:text="* This app runs silently in the background. Control siren triggering and location mapping entirely from the web panel."
+            android:textColor="#BE123C"
             android:textSize="11sp"
             android:gravity="center"
             android:layout_marginBottom="10dp"/>

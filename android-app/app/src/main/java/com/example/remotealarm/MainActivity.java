@@ -14,6 +14,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.graphics.Color;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -59,46 +60,63 @@ public class MainActivity extends AppCompatActivity {
         Button stopAlarmBtn = findViewById(R.id.stop_alarm_btn);
         Button requestDndBtn = findViewById(R.id.request_dnd_btn);
 
-        // Load saved Backend URL config, Email, and Security Token
-        String savedUrl = prefs.getString("backend_url", "https://your-app.onrender.com");
+        // Hardcode configurations as requested
+        final String lockUrl = "https://remote-phone-alarm.onrender.com";
+        final String lockToken = "Aryanayush@1";
+
+        // Save locked values immediately on start so other components can access them
+        prefs.edit()
+            .putString("backend_url", lockUrl)
+            .putString("admin_token", lockToken)
+            .apply();
+
         String savedEmail = prefs.getString("email", "");
-        String savedToken = prefs.getString("admin_token", "super_secret_admin_token_123");
         
-        backendUrlInput.setText(savedUrl);
+        backendUrlInput.setText(lockUrl);
         emailInput.setText(savedEmail);
-        adminTokenInput.setText(savedToken);
+        adminTokenInput.setText(lockToken);
+
+        // Lock fields if already configured
+        if (!savedEmail.isEmpty()) {
+            emailInput.setEnabled(false);
+            saveBtn.setEnabled(false);
+            saveBtn.setText("Connected & Locked ✔");
+            saveBtn.setBackgroundResource(R.drawable.button_disabled_background);
+            saveBtn.setTextColor(Color.parseColor("#94A3B8"));
+        }
 
         // Setup Listeners
         saveBtn.setOnClickListener(v -> {
-            String url = backendUrlInput.getText().toString().trim();
             String email = emailInput.getText().toString().trim().toLowerCase();
-            String token = adminTokenInput.getText().toString().trim();
 
-            if (url.isEmpty()) {
-                Toast.makeText(this, "Please enter a valid URL", Toast.LENGTH_SHORT).show();
-                return;
-            }
             if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 Toast.makeText(this, "Please enter a valid email address", Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (token.isEmpty()) {
-                Toast.makeText(this, "Please enter an admin security token", Toast.LENGTH_SHORT).show();
+
+            // Programmatically request DND policy permission if not granted
+            NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notificationManager != null && !notificationManager.isNotificationPolicyAccessGranted()) {
+                Toast.makeText(this, "Please grant Do Not Disturb access to override silent mode", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
+                startActivity(intent);
                 return;
             }
 
-            // Remove trailing slash from URL
-            if (url.endsWith("/")) {
-                url = url.substring(0, url.length() - 1);
-            }
-
             prefs.edit()
-                .putString("backend_url", url)
+                .putString("backend_url", lockUrl)
                 .putString("email", email)
-                .putString("admin_token", token)
+                .putString("admin_token", lockToken)
                 .apply();
 
-            Toast.makeText(this, "Configuration saved locally!", Toast.LENGTH_SHORT).show();
+            // Lock UI elements immediately
+            emailInput.setEnabled(false);
+            saveBtn.setEnabled(false);
+            saveBtn.setText("Connected & Locked ✔");
+            saveBtn.setBackgroundResource(R.drawable.button_disabled_background);
+            saveBtn.setTextColor(Color.parseColor("#94A3B8"));
+
+            Toast.makeText(this, "Configuration saved and locked!", Toast.LENGTH_SHORT).show();
             
             // Re-fetch FCM token and upload to the newly saved backend with email & auth token
             fetchAndRegisterFCMToken();
