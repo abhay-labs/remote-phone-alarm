@@ -30,7 +30,7 @@
             android:textSize="14sp"
             android:layout_marginBottom="25dp"/>
 
-        <!-- Section: Backend Connection Config -->
+        <!-- Section: Connection & Identity Config -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -42,11 +42,11 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="SERVER CONFIGURATION"
+                android:text="REGISTRATION &amp; CONNECTION"
                 android:textColor="#A5B4FC"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="10dp"/>
+                android:layout_marginBottom="12dp"/>
 
             <TextView
                 android:layout_width="wrap_content"
@@ -64,10 +64,31 @@
                 android:textColor="#FFFFFF"
                 android:padding="12dp"
                 android:inputType="textUri"
-                android:hint="http://10.0.2.2:3000"
+                android:hint="https://your-app.onrender.com"
                 android:textColorHint="#555555"
                 android:textSize="14sp"
                 android:layout_marginBottom="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Your Email Address:"
+                android:textColor="#CCCCCC"
+                android:textSize="14sp"
+                android:layout_marginBottom="5dp"/>
+
+            <EditText
+                android:id="@+id/email_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#2E2E2E"
+                android:textColor="#FFFFFF"
+                android:padding="12dp"
+                android:inputType="textEmailAddress"
+                android:hint="user@example.com"
+                android:textColorHint="#555555"
+                android:textSize="14sp"
+                android:layout_marginBottom="16dp"/>
 
             <Button
                 android:id="@+id/save_btn"
@@ -79,58 +100,6 @@
                 android:textAllCaps="false"/>
         </LinearLayout>
 
-        <!-- Section: Device FCM Status -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#1E1E1E"
-            android:padding="16dp"
-            android:layout_marginBottom="20dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="FIREBASE CLOUD MESSAGING STATUS"
-                android:textColor="#A5B4FC"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="10dp"/>
-
-            <TextView
-                android:id="@+id/token_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Device FCM Registration Token:"
-                android:textColor="#CCCCCC"
-                android:textSize="14sp"
-                android:layout_marginBottom="5dp"/>
-
-            <TextView
-                android:id="@+id/token_text_view"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#2E2E2E"
-                android:textColor="#818CF8"
-                android:padding="12dp"
-                android:textSize="11sp"
-                android:fontFamily="monospace"
-                android:maxLines="4"
-                android:ellipsize="end"
-                android:scrollbars="vertical"
-                android:text="Loading token..."
-                android:layout_marginBottom="12dp"/>
-
-            <Button
-                android:id="@+id/copy_token_btn"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Copy Token to Clipboard"
-                android:backgroundTint="#312E81"
-                android:textColor="#FFFFFF"
-                android:textAllCaps="false"/>
-        </LinearLayout>
-
         <!-- Section: Permission Manager -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -138,7 +107,7 @@
             android:orientation="vertical"
             android:background="#1E1E1E"
             android:padding="16dp"
-            android:layout_marginBottom="20dp">
+            android:layout_marginBottom="25dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -167,62 +136,30 @@
                 android:backgroundTint="#4B5563"
                 android:textColor="#FFFFFF"
                 android:textAllCaps="false"/>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="* DND Access allows the alarm to play sound even if device volume is muted or in silent profile."
-                android:textColor="#666666"
-                android:textSize="11sp"
-                android:layout_marginTop="8dp"/>
         </LinearLayout>
 
-        <!-- Section: Testing Commands -->
-        <LinearLayout
+        <!-- Section: Big Stop Button -->
+        <Button
+            android:id="@+id/stop_alarm_btn"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:text="STOP ALARM"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:backgroundTint="#E11D48"
+            android:textColor="#FFFFFF"
+            android:elevation="4dp"
+            android:textAllCaps="true"
+            android:layout_marginBottom="20dp"/>
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#1E1E1E"
-            android:padding="16dp"
-            android:layout_marginBottom="20dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="LOCAL DIAGNOSTIC PANEL"
-                android:textColor="#F43F5E"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="12dp"/>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/test_alarm_btn"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="5dp"
-                    android:text="Test Siren"
-                    android:backgroundTint="#E11D48"
-                    android:textColor="#FFFFFF"
-                    android:textAllCaps="false"/>
-
-                <Button
-                    android:id="@+id/stop_alarm_btn"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="5dp"
-                    android:text="Stop Siren"
-                    android:backgroundTint="#374151"
-                    android:textColor="#FFFFFF"
-                    android:textAllCaps="false"/>
-            </LinearLayout>
-        </LinearLayout>
+            android:text="* Ensure Do Not Disturb access is enabled so the app can override silent profiles."
+            android:textColor="#555555"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:layout_marginBottom="10dp"/>
 
     </LinearLayout>
 </ScrollView>

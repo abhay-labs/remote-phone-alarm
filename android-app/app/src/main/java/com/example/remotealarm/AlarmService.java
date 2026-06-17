@@ -210,13 +210,14 @@ public class AlarmService extends Service {
     private void sendLocationToBackend(double latitude, double longitude, float accuracy) {
         SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
         String baseUrl = prefs.getString("backend_url", "http://10.0.2.2:3000");
+        String email = prefs.getString("email", "");
         String url = baseUrl + "/api/location";
 
-        Log.i(TAG, "Sending location to: " + url);
+        Log.i(TAG, "Sending location for " + email + " to: " + url);
 
         String jsonPayload = String.format(
-                "{\"latitude\": %f, \"longitude\": %f, \"accuracy\": %f}",
-                latitude, longitude, accuracy
+                "{\"email\": \"%s\", \"latitude\": %f, \"longitude\": %f, \"accuracy\": %f}",
+                email, latitude, longitude, accuracy
         );
 
         RequestBody body = RequestBody.create(

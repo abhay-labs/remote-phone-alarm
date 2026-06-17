@@ -98,8 +98,8 @@
               <span class="info-value" id="device-sdk">-</span>
             </div>
             <div class="info-item">
-              <span class="info-label">FCM Token</span>
-              <span class="info-value token-value" id="device-token-preview">Not registered</span>
+              <span class="info-label">Linked Email</span>
+              <span class="info-value" id="device-email">Not configured</span>
             </div>
             <div class="info-item">
               <span class="info-label">Last Ping</span>
@@ -154,6 +154,12 @@
             <label for="admin-token-input">Admin Security Token</label>
             <input type="password" id="admin-token-input" placeholder="Enter security token" required>
             <small>Matches <code>ADMIN_TOKEN</code> configured on the server.</small>
+          </div>
+          
+          <div class="form-group">
+            <label for="admin-email-input">Target Email Address</label>
+            <input type="email" id="admin-email-input" placeholder="e.g. user@example.com" required>
+            <small>Controls the phone registered under this email.</small>
           </div>
           
           <button type="submit" class="submit-btn">Save Configurations</button>

@@ -2,8 +2,6 @@ package com.example.remotealarm;
 
 import android.Manifest;
 import android.app.NotificationManager;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -39,7 +37,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 101;
 
     private EditText backendUrlInput;
-    private TextView tokenTextView;
+    private EditText emailInput;
     private TextView permissionStatusText;
     private SharedPreferences prefs;
     private final OkHttpClient httpClient = new OkHttpClient();
@@ -53,54 +51,47 @@ public class MainActivity extends AppCompatActivity {
 
         // Initialize UI Elements
         backendUrlInput = findViewById(R.id.backend_url_input);
-        tokenTextView = findViewById(R.id.token_text_view);
+        emailInput = findViewById(R.id.email_input);
         permissionStatusText = findViewById(R.id.permission_status);
         Button saveBtn = findViewById(R.id.save_btn);
-        Button copyTokenBtn = findViewById(R.id.copy_token_btn);
-        Button testAlarmBtn = findViewById(R.id.test_alarm_btn);
         Button stopAlarmBtn = findViewById(R.id.stop_alarm_btn);
         Button requestDndBtn = findViewById(R.id.request_dnd_btn);
 
-        // Load saved Backend URL config
-        String savedUrl = prefs.getString("backend_url", "http://10.0.2.2:3000");
+        // Load saved Backend URL config & Email
+        String savedUrl = prefs.getString("backend_url", "https://your-app.onrender.com");
+        String savedEmail = prefs.getString("email", "");
+        
         backendUrlInput.setText(savedUrl);
+        emailInput.setText(savedEmail);
 
         // Setup Listeners
         saveBtn.setOnClickListener(v -> {
             String url = backendUrlInput.getText().toString().trim();
+            String email = emailInput.getText().toString().trim().toLowerCase();
+
             if (url.isEmpty()) {
                 Toast.makeText(this, "Please enter a valid URL", Toast.LENGTH_SHORT).show();
                 return;
             }
-            // Remove trailing slash
+            if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                Toast.makeText(this, "Please enter a valid email address", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Remove trailing slash from URL
             if (url.endsWith("/")) {
                 url = url.substring(0, url.length() - 1);
             }
-            prefs.edit().putString("backend_url", url).apply();
-            Toast.makeText(this, "Server URL configuration saved!", Toast.LENGTH_SHORT).show();
+
+            prefs.edit()
+                .putString("backend_url", url)
+                .putString("email", email)
+                .apply();
+
+            Toast.makeText(this, "Configuration saved locally!", Toast.LENGTH_SHORT).show();
             
-            // Re-fetch FCM token and upload to the newly saved backend
+            // Re-fetch FCM token and upload to the newly saved backend with email
             fetchAndRegisterFCMToken();
-        });
-
-        copyTokenBtn.setOnClickListener(v -> {
-            String token = tokenTextView.getText().toString();
-            if (token.isEmpty() || token.startsWith("Fetching") || token.startsWith("Failed")) {
-                Toast.makeText(this, "No valid FCM token to copy", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText("FCM Token", token);
-            if (clipboard != null) {
-                clipboard.setPrimaryClip(clip);
-                Toast.makeText(this, "Token copied to clipboard!", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        testAlarmBtn.setOnClickListener(v -> {
-            Toast.makeText(this, "Testing Alarm Sound & Flashlight...", Toast.LENGTH_SHORT).show();
-            Intent serviceIntent = new Intent(this, AlarmService.class);
-            ContextCompat.startForegroundService(this, serviceIntent);
         });
 
         stopAlarmBtn.setOnClickListener(v -> {
@@ -115,8 +106,10 @@ public class MainActivity extends AppCompatActivity {
         // Check/Request Permissions
         checkAndRequestPermissions();
 
-        // Fetch and display Firebase Cloud Messaging Token
-        fetchAndRegisterFCMToken();
+        // Fetch and display Firebase Cloud Messaging Token (registers automatically if already configured)
+        if (!savedEmail.isEmpty()) {
+            fetchAndRegisterFCMToken();
+        }
     }
 
     private void checkAndRequestPermissions() {
@@ -166,38 +159,40 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void fetchAndRegisterFCMToken() {
-        tokenTextView.setText("Fetching FCM device token...");
-        
         FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
             if (!task.isSuccessful()) {
                 Log.w(TAG, "Fetching FCM registration token failed", task.getException());
-                tokenTextView.setText("Failed to retrieve FCM token");
                 return;
             }
 
             // Get token
             String token = task.getResult();
             Log.i(TAG, "Active FCM Token: " + token);
-            tokenTextView.setText(token);
             
             // Save token
             prefs.edit().putString("fcm_token", token).apply();
 
-            // Register Token with the Backend API
+            // Register Token with the Backend API (bound to email)
             registerTokenOnBackend(token);
         });
     }
 
     private void registerTokenOnBackend(String token) {
-        String baseUrl = prefs.getString("backend_url", "http://10.0.2.2:3000");
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+
+        if (baseUrl.isEmpty() || email.isEmpty()) {
+            return;
+        }
+
         String url = baseUrl + "/api/register";
 
         String model = Build.MODEL;
         int sdkVersion = Build.VERSION.SDK_INT;
 
         String jsonPayload = String.format(
-                "{\"token\": \"%s\", \"deviceInfo\": {\"model\": \"%s\", \"sdkVersion\": %d}}",
-                token, model, sdkVersion
+                "{\"email\": \"%s\", \"token\": \"%s\", \"deviceInfo\": {\"model\": \"%s\", \"sdkVersion\": %d}}",
+                email, token, model, sdkVersion
         );
 
         RequestBody body = RequestBody.create(
@@ -214,14 +209,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(TAG, "Network registration failed for url: " + url, e);
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Server registration failed. Verify URL.", Toast.LENGTH_LONG).show());
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Server registration failed. Verify internet/URL.", Toast.LENGTH_LONG).show());
             }
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (response.isSuccessful()) {
                     Log.i(TAG, "Backend registered device successfully");
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Device token updated on server!", Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Device linked with email on server!", Toast.LENGTH_SHORT).show());
                 } else {
                     Log.w(TAG, "Server registration error: " + response.code());
                 }

@@ -1,7 +1,8 @@
 // State Configuration
 let config = {
   serverUrl: localStorage.getItem('server_url') || window.location.origin || 'http://localhost:3000',
-  adminToken: localStorage.getItem('admin_token') || 'super_secret_admin_token_123'
+  adminToken: localStorage.getItem('admin_token') || 'super_secret_admin_token_123',
+  adminEmail: localStorage.getItem('admin_email') || 'user@example.com'
 };
 
 // If loaded locally via file://, fallback to default port 3000
@@ -26,7 +27,7 @@ const actionStatusMsg = document.getElementById('action-status-msg');
 
 const deviceModel = document.getElementById('device-model');
 const deviceSdk = document.getElementById('device-sdk');
-const deviceTokenPreview = document.getElementById('device-token-preview');
+const deviceEmail = document.getElementById('device-email');
 const deviceLastUpdate = document.getElementById('device-last-update');
 
 const gpsAccuracyBadge = document.getElementById('gps-accuracy-badge');
@@ -41,12 +42,14 @@ const closeSettingsBtn = document.getElementById('close-settings-btn');
 const settingsForm = document.getElementById('settings-form');
 const serverUrlInput = document.getElementById('server-url-input');
 const adminTokenInput = document.getElementById('admin-token-input');
+const adminEmailInput = document.getElementById('admin-email-input');
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
   // Populate settings form inputs with current config
   serverUrlInput.value = config.serverUrl;
   adminTokenInput.value = config.adminToken;
+  adminEmailInput.value = config.adminEmail;
 
   // Event Listeners
   openSettingsBtn.addEventListener('click', openModal);
@@ -69,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function openModal() {
   serverUrlInput.value = config.serverUrl;
   adminTokenInput.value = config.adminToken;
+  adminEmailInput.value = config.adminEmail;
   settingsModal.classList.add('active');
 }
 
@@ -80,9 +84,11 @@ function saveSettings(e) {
   e.preventDefault();
   config.serverUrl = serverUrlInput.value.trim().replace(/\/$/, ""); // Remove trailing slash
   config.adminToken = adminTokenInput.value.trim();
+  config.adminEmail = adminEmailInput.value.trim().toLowerCase();
 
   localStorage.setItem('server_url', config.serverUrl);
   localStorage.setItem('admin_token', config.adminToken);
+  localStorage.setItem('admin_email', config.adminEmail);
 
   closeModal();
   showFeedback('Settings updated. Reconnecting...', 'success');
@@ -103,12 +109,6 @@ function showFeedback(message, type = 'info') {
       actionStatusMsg.className = 'status-msg';
     }
   }, 5000);
-}
-
-// Format FCM token to fit in UI
-function truncateToken(token) {
-  if (!token) return 'Not registered';
-  return `${token.substring(0, 10)}...${token.substring(token.length - 10)}`;
 }
 
 // Format ISO strings to local readable strings
@@ -167,8 +167,13 @@ function updateMap(lat, lng, accuracy) {
 
 // API Call: Fetch status from server
 async function checkStatus() {
+  if (!config.adminEmail) {
+    setServerOffline('Email address not configured');
+    return;
+  }
+
   try {
-    const response = await fetch(`${config.serverUrl}/api/status`);
+    const response = await fetch(`${config.serverUrl}/api/status?email=${encodeURIComponent(config.adminEmail)}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -200,6 +205,8 @@ function updateUI(data) {
     firebaseStatusBadge.className = 'badge';
   }
 
+  deviceEmail.textContent = config.adminEmail;
+
   // Update Device Info Card
   if (data.token) {
     ringBtn.classList.remove('disabled');
@@ -211,15 +218,10 @@ function updateUI(data) {
       deviceModel.textContent = 'Android Device';
       deviceSdk.textContent = 'API Level Unknown';
     }
-    
-    deviceTokenPreview.textContent = truncateToken(data.token);
-    deviceTokenPreview.title = data.token;
   } else {
     ringBtn.classList.add('disabled');
     deviceModel.textContent = 'No Device Connected';
     deviceSdk.textContent = '-';
-    deviceTokenPreview.textContent = 'Token not registered';
-    deviceTokenPreview.title = '';
   }
 
   deviceLastUpdate.textContent = formatTimestamp(data.lastUpdated);
@@ -295,7 +297,8 @@ async function triggerAlarm() {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.adminToken}`
-      }
+      },
+      body: JSON.stringify({ email: config.adminEmail })
     });
 
     const json = await response.json();
@@ -328,7 +331,8 @@ async function stopAlarm() {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.adminToken}`
-      }
+      },
+      body: JSON.stringify({ email: config.adminEmail })
     });
 
     const json = await response.json();

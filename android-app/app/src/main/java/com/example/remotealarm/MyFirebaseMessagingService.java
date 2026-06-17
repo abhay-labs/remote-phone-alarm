@@ -81,6 +81,12 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     private void registerTokenOnBackend(String token) {
         SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
         String baseUrl = prefs.getString("backend_url", "http://10.0.2.2:3000");
+        String email = prefs.getString("email", "");
+
+        if (baseUrl.isEmpty() || email.isEmpty()) {
+            return;
+        }
+
         String url = baseUrl + "/api/register";
 
         // Collect basic device info
@@ -88,8 +94,8 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         int sdkVersion = Build.VERSION.SDK_INT;
 
         String jsonPayload = String.format(
-                "{\"token\": \"%s\", \"deviceInfo\": {\"model\": \"%s\", \"sdkVersion\": %d}}",
-                token, model, sdkVersion
+                "{\"email\": \"%s\", \"token\": \"%s\", \"deviceInfo\": {\"model\": \"%s\", \"sdkVersion\": %d}}",
+                email, token, model, sdkVersion
         );
 
         RequestBody body = RequestBody.create(

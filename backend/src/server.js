@@ -8,51 +8,73 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'super_secret_admin_token_123';
-const STATE_FILE = path.join(__dirname, '..', 'state.json');
+const DB_FILE = path.join(__dirname, '..', 'db.json');
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Serve static frontend files from parent directory's frontend folder
+// Serve static frontend files
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
 
-// Helper to read state from JSON file
-function readState() {
+// Helper to read database from JSON file
+function readDb() {
   try {
-    if (fs.existsSync(STATE_FILE)) {
-      const data = fs.readFileSync(STATE_FILE, 'utf8');
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, 'utf8');
       return JSON.parse(data);
     }
   } catch (err) {
-    console.error('Error reading state file:', err);
+    console.error('Error reading db file:', err);
   }
-  return {
-    token: null,
-    alarmActive: false,
-    location: null,
-    lastUpdated: null,
-    deviceInfo: null
-  };
+  return {};
 }
 
-// Helper to write state to JSON file
-function writeState(state) {
+// Helper to write database to JSON file
+function writeDb(db) {
   try {
-    state.lastUpdated = new Date().toISOString();
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
   } catch (err) {
-    console.error('Error writing state file:', err);
+    console.error('Error writing db file:', err);
   }
+}
+
+// Get or initialize user state helper
+function getUserState(db, email) {
+  const normalizedEmail = email.toLowerCase().trim();
+  if (!db[normalizedEmail]) {
+    db[normalizedEmail] = {
+      token: null,
+      alarmActive: false,
+      location: null,
+      lastUpdated: null,
+      deviceInfo: null
+    };
+  }
+  return db[normalizedEmail];
 }
 
 // Initialize Firebase Admin SDK
 let firebaseApp = null;
 let isFirebaseInitialized = false;
 
-const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT;
+// 1. First check if credentials are passed in env variable as a JSON string
+const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+// 2. Fallback to file path
+const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT || './service-account.json';
 
-if (serviceAccountPath) {
+if (serviceAccountJson) {
+  try {
+    const serviceAccount = JSON.parse(serviceAccountJson);
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    isFirebaseInitialized = true;
+    console.log('✅ Firebase Admin SDK initialized successfully using environment JSON.');
+  } catch (error) {
+    console.error('❌ Failed to initialize Firebase Admin SDK using environment JSON:', error.message);
+  }
+} else if (serviceAccountPath) {
   const fullPath = path.resolve(serviceAccountPath);
   if (fs.existsSync(fullPath)) {
     try {
@@ -61,16 +83,14 @@ if (serviceAccountPath) {
         credential: admin.credential.cert(serviceAccount)
       });
       isFirebaseInitialized = true;
-      console.log('✅ Firebase Admin SDK initialized successfully using service account:', fullPath);
+      console.log('✅ Firebase Admin SDK initialized successfully using credentials file:', fullPath);
     } catch (error) {
-      console.error('❌ Failed to initialize Firebase Admin SDK with service account:', error.message);
+      console.error('❌ Failed to initialize Firebase Admin with file:', error.message);
     }
-  } else {
-    console.warn(`⚠️ Firebase service account file not found at: ${fullPath}`);
-    console.warn('⚠️ Server running in FCM Mock/Demo mode. Notifications will not be sent to real devices.');
   }
-} else {
-  console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT environment variable is not defined.');
+}
+
+if (!isFirebaseInitialized) {
   console.warn('⚠️ Server running in FCM Mock/Demo mode. Notifications will not be sent to real devices.');
 }
 
@@ -91,67 +111,92 @@ function authenticateAdmin(req, res, next) {
 
 // API Routes
 
-// 1. Get system status
+// 1. Get status for a specific email
 app.get('/api/status', (req, res) => {
-  const state = readState();
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const db = readDb();
+  const normalizedEmail = email.toLowerCase().trim();
+  const userState = getUserState(db, normalizedEmail);
+
   res.json({
     success: true,
     data: {
-      ...state,
+      ...userState,
       firebaseInitialized: isFirebaseInitialized
     }
   });
 });
 
-// 2. Register FCM Device Token (called by Android app)
+// 2. Register FCM Device Token by Email (called by Android app)
 app.post('/api/register', (req, res) => {
-  const { token, deviceInfo } = req.body;
-  if (!token) {
-    return res.status(400).json({ success: false, error: 'Device token is required' });
+  const { email, token, deviceInfo } = req.body;
+  if (!email || !token) {
+    return res.status(400).json({ success: false, error: 'Email and Device token are required' });
   }
 
-  const state = readState();
-  state.token = token;
+  const db = readDb();
+  const normalizedEmail = email.toLowerCase().trim();
+  const userState = getUserState(db, normalizedEmail);
+
+  userState.token = token;
+  userState.lastUpdated = new Date().toISOString();
   if (deviceInfo) {
-    state.deviceInfo = deviceInfo;
+    userState.deviceInfo = deviceInfo;
   }
-  writeState(state);
 
-  console.log(`📱 Registered device token: ${token.substring(0, 20)}...`);
-  res.json({ success: true, message: 'Device token registered successfully' });
+  writeDb(db);
+  console.log(`📱 Registered device for email: ${normalizedEmail}`);
+  res.json({ success: true, message: 'Device token registered successfully under email' });
 });
 
 // 3. Post device location (called by Android app when alarm triggers)
 app.post('/api/location', (req, res) => {
-  const { latitude, longitude, accuracy } = req.body;
-  if (latitude === undefined || longitude === undefined) {
-    return res.status(400).json({ success: false, error: 'Latitude and Longitude are required' });
+  const { email, latitude, longitude, accuracy } = req.body;
+  if (!email || latitude === undefined || longitude === undefined) {
+    return res.status(400).json({ success: false, error: 'Email, Latitude and Longitude are required' });
   }
 
-  const state = readState();
-  state.location = {
+  const db = readDb();
+  const normalizedEmail = email.toLowerCase().trim();
+  const userState = getUserState(db, normalizedEmail);
+
+  userState.location = {
     latitude,
     longitude,
     accuracy: accuracy || null,
     timestamp: new Date().toISOString()
   };
-  writeState(state);
+  userState.lastUpdated = new Date().toISOString();
 
-  console.log(`📍 Received location from device: Lat ${latitude}, Lng ${longitude}`);
+  writeDb(db);
+  console.log(`📍 Received location for email ${normalizedEmail}: Lat ${latitude}, Lng ${longitude}`);
   res.json({ success: true, message: 'Location updated successfully' });
 });
 
-// 4. Trigger Alarm (called by Web Admin Panel)
+// 4. Trigger Alarm by Email (called by Web Admin Panel)
 app.post('/api/trigger', authenticateAdmin, async (req, res) => {
-  const state = readState();
-  if (!state.token) {
-    return res.status(400).json({ success: false, error: 'No device token registered yet. Open the Android app first.' });
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email is required to trigger alarm' });
   }
 
-  state.alarmActive = true;
-  writeState(state);
+  const db = readDb();
+  const normalizedEmail = email.toLowerCase().trim();
+  const userState = db[normalizedEmail];
 
-  console.log('🚀 Triggering alarm command on device...');
+  if (!userState || !userState.token) {
+    return res.status(400).json({ success: false, error: `No device registered for email: ${normalizedEmail}. Open app on phone first.` });
+  }
+
+  userState.alarmActive = true;
+  userState.lastUpdated = new Date().toISOString();
+  writeDb(db);
+
+  console.log(`🚀 Triggering alarm command for email: ${normalizedEmail}...`);
 
   if (!isFirebaseInitialized) {
     return res.json({
@@ -167,34 +212,43 @@ app.post('/api/trigger', authenticateAdmin, async (req, res) => {
       command: 'TRIGGER_ALARM',
       timestamp: new Date().toISOString()
     },
-    token: state.token,
+    token: userState.token,
     android: {
-      priority: 'high', // Delivers immediately and wakes up device
-      ttl: 0            // Don't store in cache, deliver now or drop
+      priority: 'high',
+      ttl: 0
     }
   };
 
   try {
     const response = await admin.messaging().send(message);
-    console.log('✅ FCM message sent successfully:', response);
+    console.log(`✅ FCM message sent to ${normalizedEmail}:`, response);
     res.json({ success: true, message: 'Alarm trigger command sent to device via FCM' });
   } catch (error) {
-    console.error('❌ Failed to send FCM message:', error);
+    console.error(`❌ Failed to send FCM message to ${normalizedEmail}:`, error);
     res.status(500).json({ success: false, error: `FCM Error: ${error.message}` });
   }
 });
 
-// 5. Stop Alarm (called by Web Admin Panel)
+// 5. Stop Alarm by Email (called by Web Admin Panel)
 app.post('/api/stop', authenticateAdmin, async (req, res) => {
-  const state = readState();
-  if (!state.token) {
-    return res.status(400).json({ success: false, error: 'No device token registered' });
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email is required to stop alarm' });
   }
 
-  state.alarmActive = false;
-  writeState(state);
+  const db = readDb();
+  const normalizedEmail = email.toLowerCase().trim();
+  const userState = db[normalizedEmail];
 
-  console.log('🛑 Sending stop alarm command to device...');
+  if (!userState || !userState.token) {
+    return res.status(400).json({ success: false, error: `No device registered for email: ${normalizedEmail}` });
+  }
+
+  userState.alarmActive = false;
+  userState.lastUpdated = new Date().toISOString();
+  writeDb(db);
+
+  console.log(`🛑 Sending stop alarm command for email: ${normalizedEmail}...`);
 
   if (!isFirebaseInitialized) {
     return res.json({
@@ -209,7 +263,7 @@ app.post('/api/stop', authenticateAdmin, async (req, res) => {
       command: 'STOP_ALARM',
       timestamp: new Date().toISOString()
     },
-    token: state.token,
+    token: userState.token,
     android: {
       priority: 'high',
       ttl: 0
@@ -218,10 +272,10 @@ app.post('/api/stop', authenticateAdmin, async (req, res) => {
 
   try {
     const response = await admin.messaging().send(message);
-    console.log('✅ FCM stop message sent successfully:', response);
+    console.log(`✅ FCM stop message sent to ${normalizedEmail}:`, response);
     res.json({ success: true, message: 'Alarm stop command sent to device via FCM' });
   } catch (error) {
-    console.error('❌ Failed to send FCM stop message:', error);
+    console.error(`❌ Failed to send FCM stop message to ${normalizedEmail}:`, error);
     res.status(500).json({ success: false, error: `FCM Error: ${error.message}` });
   }
 });
