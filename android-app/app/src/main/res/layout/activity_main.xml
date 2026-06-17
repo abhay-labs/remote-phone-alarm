@@ -88,6 +88,27 @@
                 android:hint="user@example.com"
                 android:textColorHint="#555555"
                 android:textSize="14sp"
+                android:layout_marginBottom="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Admin Security Token:"
+                android:textColor="#CCCCCC"
+                android:textSize="14sp"
+                android:layout_marginBottom="5dp"/>
+
+            <EditText
+                android:id="@+id/admin_token_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#2E2E2E"
+                android:textColor="#FFFFFF"
+                android:padding="12dp"
+                android:inputType="textPassword"
+                android:hint="Enter security token"
+                android:textColorHint="#555555"
+                android:textSize="14sp"
                 android:layout_marginBottom="16dp"/>
 
             <Button

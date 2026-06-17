@@ -38,6 +38,7 @@ public class MainActivity extends AppCompatActivity {
 
     private EditText backendUrlInput;
     private EditText emailInput;
+    private EditText adminTokenInput;
     private TextView permissionStatusText;
     private SharedPreferences prefs;
     private final OkHttpClient httpClient = new OkHttpClient();
@@ -52,22 +53,26 @@ public class MainActivity extends AppCompatActivity {
         // Initialize UI Elements
         backendUrlInput = findViewById(R.id.backend_url_input);
         emailInput = findViewById(R.id.email_input);
+        adminTokenInput = findViewById(R.id.admin_token_input);
         permissionStatusText = findViewById(R.id.permission_status);
         Button saveBtn = findViewById(R.id.save_btn);
         Button stopAlarmBtn = findViewById(R.id.stop_alarm_btn);
         Button requestDndBtn = findViewById(R.id.request_dnd_btn);
 
-        // Load saved Backend URL config & Email
+        // Load saved Backend URL config, Email, and Security Token
         String savedUrl = prefs.getString("backend_url", "https://your-app.onrender.com");
         String savedEmail = prefs.getString("email", "");
+        String savedToken = prefs.getString("admin_token", "super_secret_admin_token_123");
         
         backendUrlInput.setText(savedUrl);
         emailInput.setText(savedEmail);
+        adminTokenInput.setText(savedToken);
 
         // Setup Listeners
         saveBtn.setOnClickListener(v -> {
             String url = backendUrlInput.getText().toString().trim();
             String email = emailInput.getText().toString().trim().toLowerCase();
+            String token = adminTokenInput.getText().toString().trim();
 
             if (url.isEmpty()) {
                 Toast.makeText(this, "Please enter a valid URL", Toast.LENGTH_SHORT).show();
@@ -75,6 +80,10 @@ public class MainActivity extends AppCompatActivity {
             }
             if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 Toast.makeText(this, "Please enter a valid email address", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (token.isEmpty()) {
+                Toast.makeText(this, "Please enter an admin security token", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -86,12 +95,22 @@ public class MainActivity extends AppCompatActivity {
             prefs.edit()
                 .putString("backend_url", url)
                 .putString("email", email)
+                .putString("admin_token", token)
                 .apply();
 
             Toast.makeText(this, "Configuration saved locally!", Toast.LENGTH_SHORT).show();
             
-            // Re-fetch FCM token and upload to the newly saved backend with email
+            // Re-fetch FCM token and upload to the newly saved backend with email & auth token
             fetchAndRegisterFCMToken();
+
+            // Start the background listener service
+            Intent serviceIntent = new Intent(this, AlarmService.class);
+            serviceIntent.setAction("START_LISTENING");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
         });
 
         stopAlarmBtn.setOnClickListener(v -> {
@@ -109,6 +128,15 @@ public class MainActivity extends AppCompatActivity {
         // Fetch and display Firebase Cloud Messaging Token (registers automatically if already configured)
         if (!savedEmail.isEmpty()) {
             fetchAndRegisterFCMToken();
+
+            // Start the background listener service
+            Intent serviceIntent = new Intent(this, AlarmService.class);
+            serviceIntent.setAction("START_LISTENING");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
         }
     }
 
@@ -162,8 +190,7 @@ public class MainActivity extends AppCompatActivity {
         FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
             if (!task.isSuccessful()) {
                 Log.e(TAG, "Fetching FCM registration token failed", task.getException());
-                String errorMsg = task.getException() != null ? task.getException().getMessage() : "Unknown Firebase Error";
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Firebase: " + errorMsg + ". Fallback active.", Toast.LENGTH_LONG).show());
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Connected! Using background polling fallback.", Toast.LENGTH_LONG).show());
                 
                 // Fallback to a mock token so connection and web dashboard become active for UI testing
                 String mockToken = "mock_token_" + prefs.getString("email", "device");
@@ -186,6 +213,7 @@ public class MainActivity extends AppCompatActivity {
     private void registerTokenOnBackend(String token) {
         String baseUrl = prefs.getString("backend_url", "");
         String email = prefs.getString("email", "");
+        String adminToken = prefs.getString("admin_token", "");
 
         if (baseUrl.isEmpty() || email.isEmpty()) {
             return;
@@ -209,6 +237,7 @@ public class MainActivity extends AppCompatActivity {
         Request request = new Request.Builder()
                 .url(url)
                 .post(body)
+                .header("Authorization", "Bearer " + adminToken)
                 .build();
 
         httpClient.newCall(request).enqueue(new Callback() {
@@ -225,6 +254,7 @@ public class MainActivity extends AppCompatActivity {
                     runOnUiThread(() -> Toast.makeText(MainActivity.this, "Device linked with email on server!", Toast.LENGTH_SHORT).show());
                 } else {
                     Log.w(TAG, "Server registration error: " + response.code());
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Server Error: " + response.code() + ". Verify Token.", Toast.LENGTH_LONG).show());
                 }
                 response.close();
             }

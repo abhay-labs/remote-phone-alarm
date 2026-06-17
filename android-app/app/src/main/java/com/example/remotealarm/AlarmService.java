@@ -56,6 +56,12 @@ public class AlarmService extends Service {
     private FusedLocationProviderClient fusedLocationClient;
     private OkHttpClient httpClient;
 
+    // Polling and state control
+    private boolean isListening = false;
+    private boolean isAlarmPlaying = false;
+    private final android.os.Handler pollingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable pollingRunnable;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -73,6 +79,17 @@ public class AlarmService extends Service {
         } catch (CameraAccessException e) {
             Log.e(TAG, "Failed to access camera for flashlight", e);
         }
+
+        // Initialize Polling Runnable
+        pollingRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isListening) {
+                    pollBackendStatus();
+                    pollingHandler.postDelayed(this, 3000); // Poll every 3 seconds
+                }
+            }
+        };
     }
 
     @Override
@@ -81,24 +98,30 @@ public class AlarmService extends Service {
 
         if ("STOP_ALARM".equals(action)) {
             Log.i(TAG, "Stop action received in service");
-            stopSelf();
-            return START_NOT_STICKY;
+            
+            // Turn off alarm locally
+            handleAlarmStateChange(false);
+            
+            // Update backend that we stopped it
+            sendStopRequestToBackend();
+            
+            return START_STICKY;
         }
 
-        Log.i(TAG, "Starting Alarm Service...");
+        if ("TRIGGER_ALARM".equals(action)) {
+            Log.i(TAG, "Trigger action received in service via FCM");
+            handleAlarmStateChange(true);
+            return START_STICKY;
+        }
+
+        Log.i(TAG, "Starting Alarm Service in listening mode...");
         
-        // 1. Create Notification Channel and start Foreground Service immediately
-        createNotificationChannel();
-        startForeground(NOTIFICATION_ID, buildNotification());
-
-        // 2. Play Alarm Sound (Force Max Volume)
-        playAlarm();
-
-        // 3. Start Flashlight Blinking
-        startBlinking();
-
-        // 4. Retrieve Location and Send to Backend
-        fetchAndSendLocation();
+        if (!isListening) {
+            isListening = true;
+            createNotificationChannel();
+            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
+            pollingHandler.post(pollingRunnable);
+        }
 
         return START_STICKY;
     }
@@ -211,6 +234,7 @@ public class AlarmService extends Service {
         SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
         String baseUrl = prefs.getString("backend_url", "http://10.0.2.2:3000");
         String email = prefs.getString("email", "");
+        String adminToken = prefs.getString("admin_token", "");
         String url = baseUrl + "/api/location";
 
         Log.i(TAG, "Sending location for " + email + " to: " + url);
@@ -228,6 +252,7 @@ public class AlarmService extends Service {
         Request request = new Request.Builder()
                 .url(url)
                 .post(body)
+                .header("Authorization", "Bearer " + adminToken)
                 .build();
 
         httpClient.newCall(request).enqueue(new Callback() {
@@ -263,39 +288,131 @@ public class AlarmService extends Service {
         }
     }
 
-    private Notification buildNotification() {
+    private Notification buildNotification(boolean isActive) {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE
         );
 
-        // Stop button inside notification
-        Intent stopIntent = new Intent(this, AlarmService.class);
-        stopIntent.setAction("STOP_ALARM");
-        PendingIntent stopPendingIntent = PendingIntent.getService(
-                this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE
-        );
-
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("GuardianLink Alarm Triggered")
-                .setContentText("A remote alarm signal has activated your device's siren.")
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "DISMISS SIREN", stopPendingIntent)
-                .build();
+                .setPriority(NotificationCompat.PRIORITY_MAX);
+
+        if (isActive) {
+            // Stop button inside notification
+            Intent stopIntent = new Intent(this, AlarmService.class);
+            stopIntent.setAction("STOP_ALARM");
+            PendingIntent stopPendingIntent = PendingIntent.getService(
+                    this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE
+            );
+
+            builder.setContentTitle("GuardianLink Alarm Triggered")
+                    .setContentText("A remote alarm signal has activated your device's siren.")
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .addAction(android.R.drawable.ic_menu_close_clear_cancel, "DISMISS SIREN", stopPendingIntent);
+        } else {
+            builder.setContentTitle("GuardianLink Listener Active")
+                    .setContentText("Listening for remote trigger signals in the background...")
+                    .setCategory(NotificationCompat.CATEGORY_SERVICE);
+        }
+
+        return builder.build();
     }
 
-    @Override
-    public void onDestroy() {
-        Log.i(TAG, "Stopping service, cleaning up resources...");
-        
-        // Stop sound
-        if (mediaPlayer != null) {
-            if (mediaPlayer.isPlaying()) {
-                mediaPlayer.stop();
+    private void pollBackendStatus() {
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+
+        if (baseUrl.isEmpty() || email.isEmpty()) {
+            return;
+        }
+
+        // Remove trailing slash if present
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String url = baseUrl + "/api/status?email=" + Uri.encode(email);
+
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Polling request failed: " + e.getMessage());
             }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    Log.e(TAG, "Polling request failed with code: " + response.code());
+                    response.close();
+                    return;
+                }
+
+                String responseBody = response.body().string();
+                response.close();
+
+                try {
+                    org.json.JSONObject json = new org.json.JSONObject(responseBody);
+                    if (json.getBoolean("success")) {
+                        org.json.JSONObject data = json.getJSONObject("data");
+                        boolean serverAlarmActive = data.getBoolean("alarmActive");
+
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            handleAlarmStateChange(serverAlarmActive);
+                        });
+                    }
+                } catch (org.json.JSONException e) {
+                    Log.e(TAG, "Error parsing polling response", e);
+                }
+            }
+        });
+    }
+
+    private void handleAlarmStateChange(boolean serverAlarmActive) {
+        if (serverAlarmActive && !isAlarmPlaying) {
+            Log.i(TAG, "Siren triggered from server command");
+            isAlarmPlaying = true;
+            
+            // Play Siren
+            playAlarm();
+            
+            // Start Flashlight
+            startBlinking();
+            
+            // Fetch and Send Location
+            fetchAndSendLocation();
+
+            // Update Notification
+            updateNotification(true);
+        } else if (!serverAlarmActive && isAlarmPlaying) {
+            Log.i(TAG, "Siren stopped from server command");
+            isAlarmPlaying = false;
+            
+            // Stop sound
+            stopAlarmMedia();
+
+            // Stop Flashlight
+            stopFlashlightBlinking();
+
+            // Update Notification
+            updateNotification(false);
+        }
+    }
+
+    private void stopAlarmMedia() {
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.stop();
+                }
+            } catch (Exception ignored) {}
             mediaPlayer.release();
             mediaPlayer = null;
         }
@@ -327,13 +444,89 @@ public class AlarmService extends Service {
                 } catch (Exception ignored) {}
             }
         }
+    }
 
-        // Stop flashlight blinking
+    private void stopFlashlightBlinking() {
         isBlinking = false;
         if (blinkThread != null) {
             blinkThread.interrupt();
             blinkThread = null;
         }
+        try {
+            cameraManager.setTorchMode(cameraId, false);
+        } catch (Exception ignored) {}
+    }
+
+    private void updateNotification(boolean isActive) {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            Notification notification = buildNotification(isActive);
+            manager.notify(NOTIFICATION_ID, notification);
+        }
+    }
+
+    private void sendStopRequestToBackend() {
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+        String adminToken = prefs.getString("admin_token", "");
+
+        if (baseUrl.isEmpty() || email.isEmpty()) {
+            return;
+        }
+
+        // Remove trailing slash if present
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String url = baseUrl + "/api/stop";
+
+        Log.i(TAG, "Sending stop alarm request for " + email + " to: " + url);
+
+        String jsonPayload = String.format("{\"email\": \"%s\"}", email);
+
+        RequestBody body = RequestBody.create(
+                jsonPayload,
+                MediaType.get("application/json; charset=utf-8")
+        );
+
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .header("Authorization", "Bearer " + adminToken)
+                .build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to send stop command to backend", e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (response.isSuccessful()) {
+                    Log.i(TAG, "Backend stop command sent successfully!");
+                } else {
+                    Log.w(TAG, "Backend stop command returned error: " + response.code());
+                }
+                response.close();
+            }
+        });
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.i(TAG, "Stopping service, cleaning up resources...");
+        
+        isListening = false;
+        pollingHandler.removeCallbacks(pollingRunnable);
+        
+        // Stop sound and restore volume
+        stopAlarmMedia();
+
+        // Stop flashlight blinking
+        stopFlashlightBlinking();
 
         super.onDestroy();
     }

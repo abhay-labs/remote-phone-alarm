@@ -82,6 +82,7 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
         String baseUrl = prefs.getString("backend_url", "http://10.0.2.2:3000");
         String email = prefs.getString("email", "");
+        String adminToken = prefs.getString("admin_token", "");
 
         if (baseUrl.isEmpty() || email.isEmpty()) {
             return;
@@ -106,6 +107,7 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         Request request = new Request.Builder()
                 .url(url)
                 .post(body)
+                .header("Authorization", "Bearer " + adminToken)
                 .build();
 
         httpClient.newCall(request).enqueue(new Callback() {
