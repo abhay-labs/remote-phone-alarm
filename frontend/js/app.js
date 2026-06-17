@@ -2,7 +2,8 @@
 let config = {
   serverUrl: localStorage.getItem('server_url') || window.location.origin || 'http://localhost:3000',
   adminToken: localStorage.getItem('admin_token') || 'Aryanayush@1',
-  adminEmail: localStorage.getItem('admin_email') || 'user@example.com'
+  adminEmail: localStorage.getItem('admin_email') || 'user@example.com',
+  sound: localStorage.getItem('selected_sound') || 'default'
 };
 
 // If loaded locally via file://, fallback to default port 3000
@@ -50,6 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
   serverUrlInput.value = config.serverUrl;
   adminTokenInput.value = config.adminToken;
   adminEmailInput.value = config.adminEmail;
+  const soundSelect = document.getElementById('sound-select');
+  if (soundSelect) {
+    soundSelect.value = config.sound;
+  }
 
   // Event Listeners
   openSettingsBtn.addEventListener('click', openModal);
@@ -73,6 +78,10 @@ function openModal() {
   serverUrlInput.value = config.serverUrl;
   adminTokenInput.value = config.adminToken;
   adminEmailInput.value = config.adminEmail;
+  const soundSelect = document.getElementById('sound-select');
+  if (soundSelect) {
+    soundSelect.value = config.sound;
+  }
   settingsModal.classList.add('active');
 }
 
@@ -85,10 +94,13 @@ function saveSettings(e) {
   config.serverUrl = serverUrlInput.value.trim().replace(/\/$/, ""); // Remove trailing slash
   config.adminToken = adminTokenInput.value.trim();
   config.adminEmail = adminEmailInput.value.trim().toLowerCase();
+  const soundSelect = document.getElementById('sound-select');
+  config.sound = soundSelect ? soundSelect.value : 'default';
 
   localStorage.setItem('server_url', config.serverUrl);
   localStorage.setItem('admin_token', config.adminToken);
   localStorage.setItem('admin_email', config.adminEmail);
+  localStorage.setItem('selected_sound', config.sound);
 
   closeModal();
   showFeedback('Settings updated. Reconnecting...', 'success');
@@ -289,8 +301,7 @@ async function triggerAlarm() {
     return;
   }
 
-  const soundSelect = document.getElementById('sound-select');
-  const selectedSound = soundSelect ? soundSelect.value : 'default';
+  const selectedSound = config.sound || 'default';
 
   showFeedback('Sending ring request...', 'info');
 
