@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remote Phone Alarm Dashboard</title>
+  
+  <!-- Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet Map CSS for Interactive GPS Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="glow-bg"></div>
+  <div class="glow-bg-secondary"></div>
+  
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon"><i class="fa-solid fa-bell-slash"></i></div>
+        <div>
+          <h1>GuardianLink</h1>
+          <p class="subtitle">Remote Phone Alarm Trigger System</p>
+        </div>
+      </div>
+      
+      <div class="status-controls">
+        <div class="server-badge" id="server-status-badge">
+          <span class="status-indicator offline" id="server-indicator"></span>
+          <span id="server-status-text">Connecting Server...</span>
+        </div>
+        
+        <button id="open-settings-btn" class="icon-btn" title="API Settings">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Dashboard Grid -->
+    <main class="dashboard-grid">
+      <!-- Left Column: Controls & Alarm Activation -->
+      <section class="card control-card">
+        <div class="card-header">
+          <h2><i class="fa-solid fa-bolt"></i> Remote Control</h2>
+          <span class="badge" id="firebase-status-badge">Firebase Mock</span>
+        </div>
+        
+        <div class="trigger-panel">
+          <!-- Big Ring Button -->
+          <div class="trigger-ring-container">
+            <button id="ring-btn" class="ring-button disabled">
+              <div class="pulse-ring"></div>
+              <div class="pulse-ring-2"></div>
+              <i class="fa-solid fa-power-off"></i>
+              <span class="btn-label">RING MY PHONE</span>
+            </button>
+          </div>
+
+          <!-- Active Alarm State / Stop Button -->
+          <div class="alarm-state-container" id="alarm-state-display">
+            <p class="state-label">Current State: <span id="alarm-state-text" class="state-inactive">INACTIVE</span></p>
+            <button id="stop-btn" class="stop-button disabled" disabled>
+              <i class="fa-solid fa-stop"></i> Stop Siren
+            </button>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <p id="action-status-msg" class="status-msg">Please configure your server URL and token first.</p>
+        </div>
+      </section>
+
+      <!-- Right Column: Device Information & Location Map -->
+      <div class="right-column-grid">
+        <!-- Device Info Card -->
+        <section class="card info-card">
+          <div class="card-header">
+            <h2><i class="fa-solid fa-mobile-screen-button"></i> Device Status</h2>
+          </div>
+          
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Device Name</span>
+              <span class="info-value" id="device-model">-</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Android SDK</span>
+              <span class="info-value" id="device-sdk">-</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">FCM Token</span>
+              <span class="info-value token-value" id="device-token-preview">Not registered</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Last Ping</span>
+              <span class="info-value" id="device-last-update">-</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Location Card -->
+        <section class="card map-card">
+          <div class="card-header">
+            <h2><i class="fa-solid fa-location-dot"></i> Live Tracking</h2>
+            <span class="gps-accuracy" id="gps-accuracy-badge">-</span>
+          </div>
+          
+          <div class="map-container-wrapper">
+            <div id="map">
+              <div class="map-placeholder">
+                <i class="fa-solid fa-map-location-dot"></i>
+                <p>Waiting for GPS coordinates from device...</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="map-footer">
+            <div class="location-details">
+              <span><i class="fa-solid fa-compass"></i> Lat: <strong id="lat-val">-</strong>, Lng: <strong id="lng-val">-</strong></span>
+            </div>
+            <a href="#" target="_blank" id="google-maps-btn" class="text-link disabled"><i class="fa-solid fa-external-link"></i> Open in Maps</a>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal" id="settings-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-sliders"></i> Connection Settings</h3>
+        <button id="close-settings-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="settings-form">
+          <div class="form-group">
+            <label for="server-url-input">Server API URL</label>
+            <input type="url" id="server-url-input" placeholder="e.g. http://localhost:3000" required>
+            <small>If running locally, keep it as: <code>http://localhost:3000</code></small>
+          </div>
+          
+          <div class="form-group">
+            <label for="admin-token-input">Admin Security Token</label>
+            <input type="password" id="admin-token-input" placeholder="Enter security token" required>
+            <small>Matches <code>ADMIN_TOKEN</code> configured on the server.</small>
+          </div>
+          
+          <button type="submit" class="submit-btn">Save Configurations</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- App JS -->
+  <script src="js/app.js"></script>
+</body>
+</html>

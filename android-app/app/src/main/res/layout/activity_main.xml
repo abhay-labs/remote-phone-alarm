@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <!-- Header Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="GuardianLink Alarm Client"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="5dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Background Alarm Listener System"
+            android:textColor="#888888"
+            android:textSize="14sp"
+            android:layout_marginBottom="25dp"/>
+
+        <!-- Section: Backend Connection Config -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E1E1E"
+            android:padding="16dp"
+            android:layout_marginBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SERVER CONFIGURATION"
+                android:textColor="#A5B4FC"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="10dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Backend API URL:"
+                android:textColor="#CCCCCC"
+                android:textSize="14sp"
+                android:layout_marginBottom="5dp"/>
+
+            <EditText
+                android:id="@+id/backend_url_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#2E2E2E"
+                android:textColor="#FFFFFF"
+                android:padding="12dp"
+                android:inputType="textUri"
+                android:hint="http://10.0.2.2:3000"
+                android:textColorHint="#555555"
+                android:textSize="14sp"
+                android:layout_marginBottom="12dp"/>
+
+            <Button
+                android:id="@+id/save_btn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save &amp; Connect"
+                android:backgroundTint="#6366F1"
+                android:textColor="#FFFFFF"
+                android:textAllCaps="false"/>
+        </LinearLayout>
+
+        <!-- Section: Device FCM Status -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E1E1E"
+            android:padding="16dp"
+            android:layout_marginBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="FIREBASE CLOUD MESSAGING STATUS"
+                android:textColor="#A5B4FC"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="10dp"/>
+
+            <TextView
+                android:id="@+id/token_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Device FCM Registration Token:"
+                android:textColor="#CCCCCC"
+                android:textSize="14sp"
+                android:layout_marginBottom="5dp"/>
+
+            <TextView
+                android:id="@+id/token_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#2E2E2E"
+                android:textColor="#818CF8"
+                android:padding="12dp"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:maxLines="4"
+                android:ellipsize="end"
+                android:scrollbars="vertical"
+                android:text="Loading token..."
+                android:layout_marginBottom="12dp"/>
+
+            <Button
+                android:id="@+id/copy_token_btn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Copy Token to Clipboard"
+                android:backgroundTint="#312E81"
+                android:textColor="#FFFFFF"
+                android:textAllCaps="false"/>
+        </LinearLayout>
+
+        <!-- Section: Permission Manager -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E1E1E"
+            android:padding="16dp"
+            android:layout_marginBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SYSTEM PERMISSIONS"
+                android:textColor="#A5B4FC"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="10dp"/>
+
+            <TextView
+                android:id="@+id/permission_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Status: Checking permissions..."
+                android:textColor="#FFA500"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="12dp"/>
+
+            <Button
+                android:id="@+id/request_dnd_btn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Grant Do Not Disturb Policy"
+                android:backgroundTint="#4B5563"
+                android:textColor="#FFFFFF"
+                android:textAllCaps="false"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="* DND Access allows the alarm to play sound even if device volume is muted or in silent profile."
+                android:textColor="#666666"
+                android:textSize="11sp"
+                android:layout_marginTop="8dp"/>
+        </LinearLayout>
+
+        <!-- Section: Testing Commands -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1E1E1E"
+            android:padding="16dp"
+            android:layout_marginBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="LOCAL DIAGNOSTIC PANEL"
+                android:textColor="#F43F5E"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="12dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/test_alarm_btn"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="5dp"
+                    android:text="Test Siren"
+                    android:backgroundTint="#E11D48"
+                    android:textColor="#FFFFFF"
+                    android:textAllCaps="false"/>
+
+                <Button
+                    android:id="@+id/stop_alarm_btn"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="5dp"
+                    android:text="Stop Siren"
+                    android:backgroundTint="#374151"
+                    android:textColor="#FFFFFF"
+                    android:textAllCaps="false"/>
+            </LinearLayout>
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

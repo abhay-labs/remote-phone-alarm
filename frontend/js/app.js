@@ -1,0 +1,344 @@
+// State Configuration
+let config = {
+  serverUrl: localStorage.getItem('server_url') || window.location.origin || 'http://localhost:3000',
+  adminToken: localStorage.getItem('admin_token') || 'super_secret_admin_token_123'
+};
+
+// If loaded locally via file://, fallback to default port 3000
+if (config.serverUrl.startsWith('file://')) {
+  config.serverUrl = 'http://localhost:3000';
+}
+
+// Leaflet Map State
+let map = null;
+let mapMarker = null;
+let pollingInterval = null;
+let isMapInitialized = false;
+
+// DOM Elements
+const serverIndicator = document.getElementById('server-indicator');
+const serverStatusText = document.getElementById('server-status-text');
+const firebaseStatusBadge = document.getElementById('firebase-status-badge');
+const ringBtn = document.getElementById('ring-btn');
+const stopBtn = document.getElementById('stop-btn');
+const alarmStateText = document.getElementById('alarm-state-text');
+const actionStatusMsg = document.getElementById('action-status-msg');
+
+const deviceModel = document.getElementById('device-model');
+const deviceSdk = document.getElementById('device-sdk');
+const deviceTokenPreview = document.getElementById('device-token-preview');
+const deviceLastUpdate = document.getElementById('device-last-update');
+
+const gpsAccuracyBadge = document.getElementById('gps-accuracy-badge');
+const latVal = document.getElementById('lat-val');
+const lngVal = document.getElementById('lng-val');
+const googleMapsBtn = document.getElementById('google-maps-btn');
+
+// Modal Elements
+const settingsModal = document.getElementById('settings-modal');
+const openSettingsBtn = document.getElementById('open-settings-btn');
+const closeSettingsBtn = document.getElementById('close-settings-btn');
+const settingsForm = document.getElementById('settings-form');
+const serverUrlInput = document.getElementById('server-url-input');
+const adminTokenInput = document.getElementById('admin-token-input');
+
+// Initialize application
+document.addEventListener('DOMContentLoaded', () => {
+  // Populate settings form inputs with current config
+  serverUrlInput.value = config.serverUrl;
+  adminTokenInput.value = config.adminToken;
+
+  // Event Listeners
+  openSettingsBtn.addEventListener('click', openModal);
+  closeSettingsBtn.addEventListener('click', closeModal);
+  settingsForm.addEventListener('submit', saveSettings);
+  ringBtn.addEventListener('click', triggerAlarm);
+  stopBtn.addEventListener('click', stopAlarm);
+
+  // Close modal when clicking outside content
+  window.addEventListener('click', (e) => {
+    if (e.target === settingsModal) closeModal();
+  });
+
+  // Start polling backend for status updates
+  checkStatus();
+  pollingInterval = setInterval(checkStatus, 3000);
+});
+
+// Modal Logic
+function openModal() {
+  serverUrlInput.value = config.serverUrl;
+  adminTokenInput.value = config.adminToken;
+  settingsModal.classList.add('active');
+}
+
+function closeModal() {
+  settingsModal.classList.remove('active');
+}
+
+function saveSettings(e) {
+  e.preventDefault();
+  config.serverUrl = serverUrlInput.value.trim().replace(/\/$/, ""); // Remove trailing slash
+  config.adminToken = adminTokenInput.value.trim();
+
+  localStorage.setItem('server_url', config.serverUrl);
+  localStorage.setItem('admin_token', config.adminToken);
+
+  closeModal();
+  showFeedback('Settings updated. Reconnecting...', 'success');
+  
+  // Re-run status check immediately
+  checkStatus();
+}
+
+// Show temporary status messages in card footer
+function showFeedback(message, type = 'info') {
+  actionStatusMsg.textContent = message;
+  actionStatusMsg.className = `status-msg ${type}`;
+  
+  // Reset message after 5 seconds
+  setTimeout(() => {
+    if (actionStatusMsg.textContent === message) {
+      actionStatusMsg.textContent = 'System ready';
+      actionStatusMsg.className = 'status-msg';
+    }
+  }, 5000);
+}
+
+// Format FCM token to fit in UI
+function truncateToken(token) {
+  if (!token) return 'Not registered';
+  return `${token.substring(0, 10)}...${token.substring(token.length - 10)}`;
+}
+
+// Format ISO strings to local readable strings
+function formatTimestamp(isoString) {
+  if (!isoString) return '-';
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ' + date.toLocaleDateString();
+  } catch (e) {
+    return isoString;
+  }
+}
+
+// Initialize Leaflet Map with Dark Theme
+function initializeMap(lat, lng) {
+  const mapElement = document.getElementById('map');
+  
+  // Remove placeholder contents
+  mapElement.innerHTML = '';
+  
+  // Create map instance
+  map = L.map('map').setView([lat, lng], 15);
+  
+  // Use CartoDB Dark Matter map tile layer for premium dark aesthetics
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 20
+  }).addTo(map);
+
+  // Add marker
+  mapMarker = L.marker([lat, lng]).addTo(map)
+    .bindPopup('<b>Phone Location</b><br>Alarm triggered area.')
+    .openPopup();
+
+  isMapInitialized = true;
+  console.log('🗺️ Leaflet Map initialized.');
+}
+
+// Update Map Position
+function updateMap(lat, lng, accuracy) {
+  if (!isMapInitialized) {
+    initializeMap(lat, lng);
+    return;
+  }
+
+  // Update map center and marker position
+  const newLatLng = new L.LatLng(lat, lng);
+  mapMarker.setLatLng(newLatLng);
+  map.setView(newLatLng, map.getZoom());
+  
+  if (accuracy) {
+    mapMarker.getPopup().setContent(`<b>Phone Location</b><br>Accuracy: ±${Math.round(accuracy)} meters`);
+  }
+}
+
+// API Call: Fetch status from server
+async function checkStatus() {
+  try {
+    const response = await fetch(`${config.serverUrl}/api/status`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const json = await response.json();
+    if (json.success) {
+      updateUI(json.data);
+    } else {
+      throw new Error(json.error || 'Unknown error');
+    }
+  } catch (error) {
+    console.error('Failed to poll status:', error.message);
+    setServerOffline(error.message);
+  }
+}
+
+// Update UI elements based on state data
+function updateUI(data) {
+  // Update Server Connection Status
+  serverIndicator.className = 'status-indicator online';
+  serverStatusText.textContent = 'Server Connected';
+
+  // Update Firebase Badge
+  if (data.firebaseInitialized) {
+    firebaseStatusBadge.textContent = 'FCM v1 Active';
+    firebaseStatusBadge.className = 'badge firebase-active';
+  } else {
+    firebaseStatusBadge.textContent = 'FCM Mock Mode';
+    firebaseStatusBadge.className = 'badge';
+  }
+
+  // Update Device Info Card
+  if (data.token) {
+    ringBtn.classList.remove('disabled');
+    
+    if (data.deviceInfo) {
+      deviceModel.textContent = data.deviceInfo.model || 'Unknown Android';
+      deviceSdk.textContent = `API ${data.deviceInfo.sdkVersion || '-'}`;
+    } else {
+      deviceModel.textContent = 'Android Device';
+      deviceSdk.textContent = 'API Level Unknown';
+    }
+    
+    deviceTokenPreview.textContent = truncateToken(data.token);
+    deviceTokenPreview.title = data.token;
+  } else {
+    ringBtn.classList.add('disabled');
+    deviceModel.textContent = 'No Device Connected';
+    deviceSdk.textContent = '-';
+    deviceTokenPreview.textContent = 'Token not registered';
+    deviceTokenPreview.title = '';
+  }
+
+  deviceLastUpdate.textContent = formatTimestamp(data.lastUpdated);
+
+  // Update Alarm State & Ring Button
+  if (data.alarmActive) {
+    alarmStateText.textContent = 'RINGING';
+    alarmStateText.className = 'state-active-label';
+    ringBtn.classList.add('ringing');
+    stopBtn.classList.remove('disabled');
+    stopBtn.disabled = false;
+  } else {
+    alarmStateText.textContent = 'INACTIVE';
+    alarmStateText.className = 'state-inactive';
+    ringBtn.classList.remove('ringing');
+    stopBtn.classList.add('disabled');
+    stopBtn.disabled = true;
+  }
+
+  // Update Location Data
+  if (data.location) {
+    const lat = parseFloat(data.location.latitude);
+    const lng = parseFloat(data.location.longitude);
+    const accuracy = data.location.accuracy;
+
+    latVal.textContent = lat.toFixed(6);
+    lngVal.textContent = lng.toFixed(6);
+    gpsAccuracyBadge.textContent = accuracy ? `±${Math.round(accuracy)}m` : 'GPS Active';
+    
+    // Enable Google Maps Link
+    googleMapsBtn.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    googleMapsBtn.classList.remove('disabled');
+
+    // Update map marker
+    updateMap(lat, lng, accuracy);
+  } else {
+    latVal.textContent = '-';
+    lngVal.textContent = '-';
+    gpsAccuracyBadge.textContent = '-';
+    googleMapsBtn.href = '#';
+    googleMapsBtn.classList.add('disabled');
+  }
+}
+
+// Handle Connection Errors
+function setServerOffline(errMessage) {
+  serverIndicator.className = 'status-indicator offline';
+  serverStatusText.textContent = 'Disconnected';
+  
+  ringBtn.classList.add('disabled');
+  stopBtn.classList.add('disabled');
+  stopBtn.disabled = true;
+  
+  alarmStateText.textContent = 'UNKNOWN';
+  alarmStateText.className = 'state-inactive';
+  ringBtn.classList.remove('ringing');
+
+  showFeedback(`Server error: ${errMessage}`, 'error');
+}
+
+// API Call: Trigger Alarm
+async function triggerAlarm() {
+  if (ringBtn.classList.contains('disabled')) {
+    showFeedback('Cannot trigger: No device registered or server is offline.', 'error');
+    return;
+  }
+
+  showFeedback('Sending ring request...', 'info');
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/trigger`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      }
+    });
+
+    const json = await response.json();
+    if (json.success) {
+      if (json.mockMode) {
+        showFeedback('Trigger sent (Demo Mode: Not routed via FCM)', 'success');
+      } else {
+        showFeedback('Phone is ringing!', 'success');
+      }
+      checkStatus(); // Force state check
+    } else {
+      showFeedback(`Failed: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Network error: ${error.message}`, 'error');
+  }
+}
+
+// API Call: Stop Alarm
+async function stopAlarm() {
+  if (stopBtn.classList.contains('disabled')) {
+    return;
+  }
+
+  showFeedback('Sending stop request...', 'info');
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/stop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      }
+    });
+
+    const json = await response.json();
+    if (json.success) {
+      showFeedback('Stop alarm sent!', 'success');
+      checkStatus(); // Force state check
+    } else {
+      showFeedback(`Failed: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Network error: ${error.message}`, 'error');
+  }
+}
