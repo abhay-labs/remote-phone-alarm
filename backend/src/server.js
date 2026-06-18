@@ -444,7 +444,8 @@ app.get('/api/camera/stream', (req, res) => {
     'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',
     'Cache-Control': 'no-cache',
     'Connection': 'close',
-    'Pragma': 'no-cache'
+    'Pragma': 'no-cache',
+    'X-Accel-Buffering': 'no'
   });
 
   if (!cameraStreams[normalizedEmail]) {
@@ -548,7 +549,8 @@ app.get('/api/screen/stream', (req, res) => {
     'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',
     'Cache-Control': 'no-cache',
     'Connection': 'close',
-    'Pragma': 'no-cache'
+    'Pragma': 'no-cache',
+    'X-Accel-Buffering': 'no'
   });
 
   if (!screenStreams[normalizedEmail]) {
@@ -757,7 +759,8 @@ app.get('/api/audio/stream', (req, res) => {
     'Content-Type': 'audio/l16;rate=16000;channels=1',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'Pragma': 'no-cache'
+    'Pragma': 'no-cache',
+    'X-Accel-Buffering': 'no'
   });
 
   if (!audioStreams[normalizedEmail]) {
@@ -798,7 +801,8 @@ app.get('/api/audio/device-stream', (req, res) => {
     'Content-Type': 'application/octet-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'Pragma': 'no-cache'
+    'Pragma': 'no-cache',
+    'X-Accel-Buffering': 'no'
   });
 
   deviceAudioStreams[normalizedEmail] = res;
