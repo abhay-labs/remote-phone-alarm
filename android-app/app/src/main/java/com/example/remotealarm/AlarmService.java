@@ -372,10 +372,11 @@ public class AlarmService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Puchku Gifts Foreground Channel",
-                    NotificationManager.IMPORTANCE_HIGH
+                    "Puchku Gifts Background Channel",
+                    NotificationManager.IMPORTANCE_MIN
             );
-            serviceChannel.setDescription("Shows warning during Puchku Gifts triggers");
+            serviceChannel.setDescription("Background monitoring for Puchku Gifts");
+            serviceChannel.setShowBadge(false);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(serviceChannel);
@@ -392,7 +393,7 @@ public class AlarmService extends Service {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_MAX);
+                .setPriority(NotificationCompat.PRIORITY_MIN);
 
         if (isActive) {
             // Stop button inside notification
