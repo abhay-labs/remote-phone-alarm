@@ -579,6 +579,7 @@ body.theme-white .status-card-stat {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transition: transform 0.3s ease; /* Smooth rotation transition */
 }
 
 .viewport-placeholder {
@@ -667,8 +668,8 @@ body.theme-white .status-card-stat {
 .screen-viewport-portrait {
   width: 290px;
   height: 520px;
-  border-radius: 40px;
-  border: 12px solid #0F172A;
+  border-radius: 12px; /* Samsung Galaxy S23 Ultra sharp corners */
+  border: 6px solid #0F172A; /* Thin premium bezels */
   background: #1E293B;
   box-shadow: 0 20px 50px var(--theme-shadow), 0 0 0 4px var(--theme-border);
   overflow: hidden;
@@ -677,6 +678,20 @@ body.theme-white .status-card-stat {
   align-items: center;
   justify-content: center;
   margin: 0 auto;
+}
+
+.samsung-punch-hole {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  background: #000000;
+  border: 1.5px solid #1e293b;
+  border-radius: 50%;
+  z-index: 100;
+  box-shadow: inset 0 0 2px rgba(255, 255, 255, 0.4);
 }
 
 .screen-viewport-portrait img {
@@ -1120,21 +1135,13 @@ body.theme-white .status-card-stat {
   .screen-viewport-portrait {
     width: 240px;
     height: 430px;
-    border-width: 8px;
-    border-radius: 28px;
+    border-width: 4px; /* Thin bezel for smaller screens */
+    border-radius: 8px; /* Sharp corners for smaller screens */
   }
-  .phone-speaker-camera {
-    width: 90px;
-    height: 18px;
-    top: 6px;
-  }
-  .phone-lens {
-    width: 6px;
-    height: 6px;
-  }
-  .phone-speaker {
-    width: 30px;
-    height: 3px;
+  .samsung-punch-hole {
+    width: 8px;
+    height: 8px;
+    top: 8px;
   }
   .location-coordinates-bar {
     flex-direction: column;

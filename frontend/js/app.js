@@ -19,6 +19,7 @@ let mapMarker = null;
 let pollingInterval = null;
 let isMapInitialized = false;
 let prevCallState = 'IDLE';
+let currentRotation = 0;
 
 // DOM Elements
 const serverIndicator = document.getElementById('server-indicator');
@@ -135,6 +136,22 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         isCameraAudioManuallyMuted = false;
         startCameraAudio();
+      }
+    });
+  }
+
+  const rotateCameraBtn = document.getElementById('rotate-camera-btn');
+  if (rotateCameraBtn) {
+    rotateCameraBtn.addEventListener('click', () => {
+      currentRotation = (currentRotation + 90) % 360;
+      if (cameraVideoFrame) {
+        if (currentRotation === 90 || currentRotation === 270) {
+          const scale = cameraVideoFrame.clientHeight / cameraVideoFrame.clientWidth;
+          const scaleVal = (scale > 0) ? scale : 0.75;
+          cameraVideoFrame.style.transform = `rotate(${currentRotation}deg) scale(${scaleVal})`;
+        } else {
+          cameraVideoFrame.style.transform = `rotate(${currentRotation}deg) scale(1)`;
+        }
       }
     });
   }
@@ -567,6 +584,8 @@ function updateUI(data) {
     cameraVideoFrame.style.display = 'none';
     cameraLoader.style.display = 'none';
     cameraVideoFrame.src = '';
+    cameraVideoFrame.style.transform = 'none';
+    currentRotation = 0;
     
     // Reset manual mute state when camera becomes inactive so next camera start will autoplay
     isCameraAudioManuallyMuted = false;
@@ -644,6 +663,8 @@ function setServerOffline(errMessage) {
   
   cameraVideoFrame.src = '';
   cameraVideoFrame.style.display = 'none';
+  cameraVideoFrame.style.transform = 'none';
+  currentRotation = 0;
   cameraLoader.style.display = 'none';
   cameraPlaceholder.style.display = 'flex';
 

@@ -233,9 +233,12 @@
                 <i class="fa-solid fa-camera"></i> Back Cam 💖
               </button>
             </div>
-            <div style="margin-top: 12px; width: 100%;">
-              <button id="camera-audio-btn" class="action-btn text-indigo" style="width: 100%; padding: 10px; font-weight: 600; border-radius: 8px; border: 2px solid #EF4444; background: transparent; color: #EF4444; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <div style="margin-top: 12px; width: 100%; display: flex; gap: 10px;">
+              <button id="camera-audio-btn" class="action-btn text-indigo" style="flex: 1; padding: 10px; font-weight: 600; border-radius: 8px; border: 2px solid #EF4444; background: transparent; color: #EF4444; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;">
                 <i class="fa-solid fa-volume-xmark"></i> Audio: Muted
+              </button>
+              <button id="rotate-camera-btn" class="action-btn text-indigo" style="flex: 1; padding: 10px; font-weight: 600; border-radius: 8px; border: 2px solid #F43F5E; background: transparent; color: #F43F5E; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;" title="Rotate Feed">
+                <i class="fa-solid fa-rotate"></i> Rotate 90°
               </button>
             </div>
           </div>
@@ -260,11 +263,8 @@
         <div class="card">
           
           <div class="screen-viewport-portrait">
-            <!-- Phone Bezel mockups -->
-            <div class="phone-speaker-camera">
-              <div class="phone-lens"></div>
-              <div class="phone-speaker"></div>
-            </div>
+            <!-- Phone Bezel mockups (Samsung Galaxy S23 Ultra Style) -->
+            <div class="samsung-punch-hole"></div>
             
             <!-- Placeholder -->
             <div class="viewport-placeholder" id="screen-placeholder">
