@@ -33,7 +33,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Your guardian wishes to view your phone screen to keep you safe. Tap below to approve mirroring!"
+        android:text="Your guardian wishes to mirror your screen to keep you safe.\n\nTap below, then click 'Start Now' on the next screen to confirm! 💖"
         android:textColor="#881337"
         android:textSize="14sp"
         android:gravity="center"
