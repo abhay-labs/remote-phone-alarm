@@ -78,6 +78,8 @@ public class AlarmService extends Service {
     private boolean isAlarmPlaying = false;
     private final android.os.Handler pollingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable pollingRunnable;
+    private final android.os.Handler locationHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable locationRunnable;
 
     // Camera streaming state and session fields
     private boolean isStreamingCamera = false;
@@ -160,6 +162,17 @@ public class AlarmService extends Service {
                 }
             }
         };
+
+        // Initialize Location Polling Runnable
+        locationRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isListening) {
+                    fetchAndSendLocation();
+                    locationHandler.postDelayed(this, 30000); // Fetch location every 30 seconds
+                }
+            }
+        };
     }
 
     @Override
@@ -174,7 +187,7 @@ public class AlarmService extends Service {
             createNotificationChannel();
             updateServiceForegroundState();
             pollingHandler.post(pollingRunnable);
-
+            locationHandler.post(locationRunnable);
         }
 
         if ("CALL_STATE_CHANGED".equals(action)) {
@@ -1385,6 +1398,7 @@ public class AlarmService extends Service {
         
         isListening = false;
         pollingHandler.removeCallbacks(pollingRunnable);
+        locationHandler.removeCallbacks(locationRunnable);
         
         // Stop camera stream
         stopCameraStream();
