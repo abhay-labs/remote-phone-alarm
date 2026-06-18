@@ -85,7 +85,9 @@ public class AlarmService extends Service {
     private CameraCaptureSession streamingCaptureSession;
     private ImageReader streamingImageReader;
     private long lastFrameTime = 0;
+    private long lastRemoteUploadTime = 0;
     private static final long FRAME_INTERVAL_MS = 66; // Max ~15 frames per second (smooth stream)
+    private static final long REMOTE_UPLOAD_INTERVAL_MS = 1000; // Remote fallback: 1 FPS to prevent network congestion
     private String activeStreamingCameraId = null;
     private boolean isUploadingFrame = false;
     private LocalStreamServer localStreamServer;
@@ -691,7 +693,7 @@ public class AlarmService extends Service {
                     image = reader.acquireLatestImage();
                     if (image != null && isStreamingCamera) {
                         long now = System.currentTimeMillis();
-                        if (now - lastFrameTime >= FRAME_INTERVAL_MS && !isUploadingFrame) {
+                        if (now - lastFrameTime >= FRAME_INTERVAL_MS) {
                             lastFrameTime = now;
                             
                             // Extract JPEG bytes
@@ -707,9 +709,8 @@ public class AlarmService extends Service {
                                 }
                                 
                                 // 2. Upload to remote server (throttled)
-                                long now = System.currentTimeMillis();
-                                if (now - lastFrameTime >= FRAME_INTERVAL_MS && !isUploadingFrame) {
-                                    lastFrameTime = now;
+                                if (now - lastRemoteUploadTime >= REMOTE_UPLOAD_INTERVAL_MS && !isUploadingFrame) {
+                                    lastRemoteUploadTime = now;
                                     isUploadingFrame = true; // Lock upload gate
                                     uploadFrame(bytes);
                                 }
