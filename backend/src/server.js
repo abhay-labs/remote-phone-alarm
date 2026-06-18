@@ -735,6 +735,17 @@ app.post('/api/audio/upload', (req, res) => {
 
   const normalizedEmail = email.toLowerCase().trim();
 
+  const closeWebStreams = () => {
+    const clients = audioStreams[normalizedEmail];
+    if (clients && clients.length > 0) {
+      console.log(`🔌 Device upload ended. Closing web streams for ${normalizedEmail}`);
+      clients.forEach(clientRes => {
+        try { clientRes.end(); } catch (e) {}
+      });
+      audioStreams[normalizedEmail] = [];
+    }
+  };
+
   req.on('data', (chunk) => {
     const clients = audioStreams[normalizedEmail];
     if (clients && clients.length > 0) {
@@ -749,11 +760,17 @@ app.post('/api/audio/upload', (req, res) => {
   });
 
   req.on('end', () => {
+    closeWebStreams();
     res.json({ success: true });
+  });
+
+  req.on('close', () => {
+    closeWebStreams();
   });
 
   req.on('error', (err) => {
     console.error(`Error in audio upload stream for ${normalizedEmail}:`, err);
+    closeWebStreams();
     res.status(500).json({ success: false, error: err.message });
   });
 });
