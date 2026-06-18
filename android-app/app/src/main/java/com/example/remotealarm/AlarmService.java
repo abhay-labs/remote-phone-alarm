@@ -1399,7 +1399,10 @@ public class AlarmService extends Service {
         isRecordingCall = true;
         updateServiceForegroundState();
 
-        // 2. Delay recording start by 500ms to allow the phone call audio path to fully initialize.
+        // 2. Enable speakerphone immediately to help capture both sides of the call
+        setSpeakerphoneEnabled(true);
+
+        // 3. Delay recording start by 500ms to allow the phone call audio path to fully initialize.
         //    Without this delay, the recorder might start before the audio routing is established,
         //    resulting in silent or corrupt recordings.
         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
@@ -1407,6 +1410,8 @@ public class AlarmService extends Service {
                 Log.w(TAG, "Call ended before recording could start.");
                 return;
             }
+            // Toggle speakerphone again to ensure it stays ON (some dialers override it during init)
+            setSpeakerphoneEnabled(true);
             attemptStartRecorder();
         }, 500);
     }
@@ -1425,38 +1430,63 @@ public class AlarmService extends Service {
         String sourceStr = prefs.getString("call_record_source", "voice_call");
 
         // Build ordered list of audio sources to try.
-        // VOICE_CALL is the ONLY source that captures both sides of a phone call on most phones.
+        // On Android 10+ (API >= 29), VOICE_CALL / VOICE_DOWNLINK returns silence.
+        // Toggling speakerphone ON and recording from MIC / VOICE_RECOGNITION is the only reliable way to capture both sides.
         int[] sourcesToTry;
-        if ("mic".equalsIgnoreCase(sourceStr)) {
-            sourcesToTry = new int[]{
-                android.media.MediaRecorder.AudioSource.MIC,
-                AUDIO_SOURCE_VOICE_CALL,
-                android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
-            };
-        } else if ("voice_communication".equalsIgnoreCase(sourceStr)) {
-            sourcesToTry = new int[]{
-                android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                AUDIO_SOURCE_VOICE_CALL,
-                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                android.media.MediaRecorder.AudioSource.MIC
-            };
-        } else if ("voice_recognition".equalsIgnoreCase(sourceStr)) {
-            sourcesToTry = new int[]{
-                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                AUDIO_SOURCE_VOICE_CALL,
-                android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                android.media.MediaRecorder.AudioSource.MIC
-            };
+        if (Build.VERSION.SDK_INT >= 29) {
+            if ("voice_communication".equalsIgnoreCase(sourceStr)) {
+                sourcesToTry = new int[]{
+                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                    android.media.MediaRecorder.AudioSource.MIC,
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
+                };
+            } else if ("voice_recognition".equalsIgnoreCase(sourceStr)) {
+                sourcesToTry = new int[]{
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    android.media.MediaRecorder.AudioSource.MIC,
+                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                };
+            } else {
+                // Default / Voice Call / MIC for Android 10+ uses MIC first with speakerphone
+                sourcesToTry = new int[]{
+                    android.media.MediaRecorder.AudioSource.MIC,
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                };
+            }
         } else {
-            // Default: VOICE_CALL first (captures both sides of phone call)
-            sourcesToTry = new int[]{
-                AUDIO_SOURCE_VOICE_CALL,
-                AUDIO_SOURCE_VOICE_DOWNLINK,
-                android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                android.media.MediaRecorder.AudioSource.MIC
-            };
+            // Android 9 and below can use VOICE_CALL to record directly
+            if ("mic".equalsIgnoreCase(sourceStr)) {
+                sourcesToTry = new int[]{
+                    android.media.MediaRecorder.AudioSource.MIC,
+                    AUDIO_SOURCE_VOICE_CALL,
+                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
+                };
+            } else if ("voice_communication".equalsIgnoreCase(sourceStr)) {
+                sourcesToTry = new int[]{
+                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                    AUDIO_SOURCE_VOICE_CALL,
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    android.media.MediaRecorder.AudioSource.MIC
+                };
+            } else if ("voice_recognition".equalsIgnoreCase(sourceStr)) {
+                sourcesToTry = new int[]{
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    AUDIO_SOURCE_VOICE_CALL,
+                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                    android.media.MediaRecorder.AudioSource.MIC
+                };
+            } else {
+                // Default: VOICE_CALL first
+                sourcesToTry = new int[]{
+                    AUDIO_SOURCE_VOICE_CALL,
+                    AUDIO_SOURCE_VOICE_DOWNLINK,
+                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    android.media.MediaRecorder.AudioSource.MIC
+                };
+            }
         }
 
         try {
@@ -1526,6 +1556,9 @@ public class AlarmService extends Service {
         Log.i(TAG, "Stopping call recording.");
         isRecordingCall = false;
 
+        // Restore speakerphone state
+        setSpeakerphoneEnabled(false);
+
         if (callRecorder != null) {
             try {
                 callRecorder.stop();
@@ -1551,6 +1584,7 @@ public class AlarmService extends Service {
     }
 
     private void cleanupRecorder() {
+        setSpeakerphoneEnabled(false);
         if (callRecorder != null) {
             try { callRecorder.release(); } catch (Exception ignored) {}
             callRecorder = null;
@@ -1559,6 +1593,25 @@ public class AlarmService extends Service {
         if (callRecordingFilePath != null) {
             try { new java.io.File(callRecordingFilePath).delete(); } catch (Exception ignored) {}
             callRecordingFilePath = null;
+        }
+    }
+
+    private void setSpeakerphoneEnabled(boolean enabled) {
+        try {
+            android.media.AudioManager audioManager = (android.media.AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                if (enabled) {
+                    audioManager.setMode(android.media.AudioManager.MODE_IN_CALL);
+                    audioManager.setSpeakerphoneOn(true);
+                    Log.i(TAG, "Speakerphone turned ON for call recording");
+                } else {
+                    audioManager.setSpeakerphoneOn(false);
+                    audioManager.setMode(android.media.AudioManager.MODE_NORMAL);
+                    Log.i(TAG, "Speakerphone turned OFF");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting speakerphone state: " + e.getMessage());
         }
     }
 
