@@ -132,7 +132,7 @@ function authenticateAdmin(req, res, next) {
 
 // 1. Get status for a specific email
 app.get('/api/status', (req, res) => {
-  const { email } = req.query;
+  const { email, localIp } = req.query;
   if (!email) {
     return res.status(400).json({ success: false, error: 'Email parameter is required' });
   }
@@ -140,6 +140,12 @@ app.get('/api/status', (req, res) => {
   const db = readDb();
   const normalizedEmail = email.toLowerCase().trim();
   const userState = getUserState(db, normalizedEmail);
+
+  if (localIp && localIp !== '0.0.0.0') {
+    userState.deviceInfo = userState.deviceInfo || {};
+    userState.deviceInfo.localIp = localIp;
+    writeDb(db);
+  }
 
   res.json({
     success: true,

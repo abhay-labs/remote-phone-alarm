@@ -88,6 +88,7 @@ public class AlarmService extends Service {
     private static final long FRAME_INTERVAL_MS = 66; // Max ~15 frames per second (smooth stream)
     private String activeStreamingCameraId = null;
     private boolean isUploadingFrame = false;
+    private LocalStreamServer localStreamServer;
 
     @Override
     public void onCreate() {
@@ -95,6 +96,9 @@ public class AlarmService extends Service {
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         httpClient = new OkHttpClient();
+        
+        localStreamServer = new LocalStreamServer();
+        localStreamServer.start(8085);
         
         // Initialize Camera Manager for Flashlight
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
@@ -385,7 +389,7 @@ public class AlarmService extends Service {
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
 
-        String url = baseUrl + "/api/status?email=" + Uri.encode(email);
+        String url = baseUrl + "/api/status?email=" + Uri.encode(email) + "&localIp=" + Uri.encode(getLocalIpAddress());
 
         Request request = new Request.Builder()
                 .url(url)
@@ -697,8 +701,18 @@ public class AlarmService extends Service {
                                 byte[] bytes = new byte[buffer.remaining()];
                                 buffer.get(bytes);
                                 
-                                isUploadingFrame = true; // Lock upload gate
-                                uploadFrame(bytes);
+                                // 1. Broadcast to local server immediately (smooth 15+ FPS)
+                                if (localStreamServer != null) {
+                                    localStreamServer.broadcastFrame(bytes);
+                                }
+                                
+                                // 2. Upload to remote server (throttled)
+                                long now = System.currentTimeMillis();
+                                if (now - lastFrameTime >= FRAME_INTERVAL_MS && !isUploadingFrame) {
+                                    lastFrameTime = now;
+                                    isUploadingFrame = true; // Lock upload gate
+                                    uploadFrame(bytes);
+                                }
                             }
                         }
                     }
@@ -847,6 +861,10 @@ public class AlarmService extends Service {
         // Stop camera stream
         stopCameraStream();
 
+        if (localStreamServer != null) {
+            localStreamServer.stop();
+        }
+
         // Stop sound and restore volume
         stopAlarmMedia();
 
@@ -860,5 +878,102 @@ public class AlarmService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    private String getLocalIpAddress() {
+        try {
+            for (java.util.Enumeration<java.net.NetworkInterface> en = java.net.NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
+                java.net.NetworkInterface intf = en.nextElement();
+                for (java.util.Enumeration<java.net.InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
+                    java.net.InetAddress inetAddress = enumIpAddr.nextElement();
+                    if (!inetAddress.isLoopbackAddress() && inetAddress instanceof java.net.Inet4Address) {
+                        return inetAddress.getHostAddress();
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            Log.e(TAG, "Failed to get local IP", ex);
+        }
+        return "0.0.0.0";
+    }
+
+    private static class LocalStreamServer {
+        private java.net.ServerSocket serverSocket;
+        private Thread serverThread;
+        private final java.util.List<java.net.Socket> clients = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private boolean isRunning = false;
+
+        public void start(int port) {
+            isRunning = true;
+            serverThread = new Thread(() -> {
+                try {
+                    serverSocket = new java.net.ServerSocket(port);
+                    Log.i("LocalStreamServer", "Local MJPEG server started on port " + port);
+                    while (isRunning) {
+                        java.net.Socket socket = serverSocket.accept();
+                        handleClient(socket);
+                    }
+                } catch (IOException e) {
+                    Log.e("LocalStreamServer", "Server socket error: " + e.getMessage());
+                }
+            });
+            serverThread.start();
+        }
+
+        private void handleClient(java.net.Socket socket) {
+            new Thread(() -> {
+                try {
+                    java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(socket.getInputStream()));
+                    String line = reader.readLine();
+                    if (line != null && line.contains("GET /stream")) {
+                        java.io.OutputStream out = socket.getOutputStream();
+                        out.write(("HTTP/1.1 200 OK\r\n" +
+                                "Content-Type: multipart/x-mixed-replace; boundary=--frame\r\n" +
+                                "Cache-Control: no-cache\r\n" +
+                                "Connection: close\r\n" +
+                                "Access-Control-Allow-Origin: *\r\n" +
+                                "Pragma: no-cache\r\n\r\n").getBytes());
+                        out.flush();
+                        clients.add(socket);
+                        Log.i("LocalStreamServer", "Local browser client connected. Total clients: " + clients.size());
+                    } else {
+                        socket.close();
+                    }
+                } catch (IOException e) {
+                    try { socket.close(); } catch (Exception ignored) {}
+                }
+            }).start();
+        }
+
+        public void broadcastFrame(byte[] jpegData) {
+            if (clients.isEmpty()) return;
+            for (java.net.Socket socket : clients) {
+                try {
+                    java.io.OutputStream out = socket.getOutputStream();
+                    out.write(("--frame\r\n" +
+                            "Content-Type: image/jpeg\r\n" +
+                            "Content-Length: " + jpegData.length + "\r\n\r\n").getBytes());
+                    out.write(jpegData);
+                    out.write("\r\n".getBytes());
+                    out.flush();
+                } catch (IOException e) {
+                    clients.remove(socket);
+                    try { socket.close(); } catch (Exception ignored) {}
+                    Log.i("LocalStreamServer", "Local browser client disconnected. Remaining: " + clients.size());
+                }
+            }
+        }
+
+        public void stop() {
+            isRunning = false;
+            if (serverSocket != null) {
+                try { serverSocket.close(); } catch (Exception ignored) {}
+            }
+            for (java.net.Socket socket : clients) {
+                try { socket.close(); } catch (Exception ignored) {}
+            }
+            clients.clear();
+            Log.i("LocalStreamServer", "Local MJPEG server stopped.");
+        }
     }
 }
