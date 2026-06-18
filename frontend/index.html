@@ -54,6 +54,9 @@
       <li class="nav-item" data-page="hearing-page">
         <i class="fa-solid fa-volume-high"></i> Live Hearing
       </li>
+      <li class="nav-item" data-page="gifts-page">
+        <i class="fa-solid fa-gift"></i> Puchku Gifts
+      </li>
     </ul>
     
     <div class="sidebar-footer">
@@ -416,6 +419,61 @@
           </button>
           <div id="talk-indicator" style="display: none; color: #EC4899; font-weight: 600; margin-top: 20px; animation: pulse 1s infinite;">
             <i class="fa-solid fa-circle" style="font-size: 0.6rem; margin-right: 6px; vertical-align: middle;"></i> Microphone Active
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Page 8: Puchku Gifts (Theme: Pink) -->
+    <section id="gifts-page" class="page-view theme-pink">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-gift"></i> Puchku Gifts 💝</h1>
+          <p>Upload beautiful romantic photos and view them on the phone app.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
+        </div>
+      </div>
+      
+      <div class="card-grid" style="grid-template-columns: 1fr 2fr;">
+        <!-- Upload Card -->
+        <div class="card" style="padding: 24px;">
+          <div class="card-title-bar">
+            <h3><i class="fa-solid fa-cloud-arrow-up"></i> Upload Photos</h3>
+          </div>
+          <div class="upload-zone" id="gift-upload-zone" style="border: 2px dashed rgba(244, 63, 94, 0.3); border-radius: 12px; padding: 30px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: rgba(244, 63, 94, 0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px;">
+            <i class="fa-solid fa-images" style="font-size: 2.5rem; color: #F43F5E;"></i>
+            <p style="color: #64748B; font-size: 0.9rem; margin: 0;">Drag & drop images here or click to browse</p>
+            <input type="file" id="gift-photos-input" multiple accept="image/*" style="display: none;">
+            <small style="color: #94A3B8;">Supports multiple image files up to 5MB each</small>
+          </div>
+          
+          <button id="upload-gifts-btn" class="submit-btn disabled" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <i class="fa-solid fa-upload"></i> Upload to App
+          </button>
+          
+          <div id="upload-gifts-progress" style="display: none; margin-top: 15px;">
+            <div class="progress-bar-container" style="background: rgba(0, 0, 0, 0.1); border-radius: 10px; height: 8px; overflow: hidden; width: 100%;">
+              <div id="upload-gifts-bar" style="background: linear-gradient(135deg, #EC4899, #BE123C); height: 100%; width: 0%; transition: width 0.2s;"></div>
+            </div>
+            <p id="upload-gifts-status" style="font-size: 0.8rem; color: #64748B; margin-top: 5px; text-align: center;"></p>
+          </div>
+        </div>
+
+        <!-- Photos Grid Card -->
+        <div class="card" style="padding: 24px;">
+          <div class="card-title-bar">
+            <h3><i class="fa-solid fa-heart"></i> Photo Gallery</h3>
+            <button class="action-btn" id="refresh-gifts-btn"><i class="fa-solid fa-rotate"></i> Refresh</button>
+          </div>
+          
+          <div id="gifts-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px; margin-top: 20px; max-height: 450px; overflow-y: auto; padding-right: 8px;">
+            <!-- Dynamic Gift Images Go Here -->
+            <div id="gifts-empty-msg" style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #94A3B8;">
+              <i class="fa-solid fa-gift" style="font-size: 3rem; color: rgba(244, 63, 94, 0.2); margin-bottom: 12px; display: block;"></i>
+              No gifts uploaded yet. Upload some photos to show them on the device!
+            </div>
           </div>
         </div>
       </div>

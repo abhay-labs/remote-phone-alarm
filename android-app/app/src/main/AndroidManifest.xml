@@ -57,6 +57,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".GiftViewActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
         <!-- Firebase Messaging Service -->
         <service
             android:name=".MyFirebaseMessagingService"

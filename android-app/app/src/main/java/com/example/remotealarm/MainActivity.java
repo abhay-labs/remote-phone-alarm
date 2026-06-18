@@ -64,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
         Button saveBtn = findViewById(R.id.save_btn);
         Button stopAlarmBtn = findViewById(R.id.stop_alarm_btn);
         Button requestDndBtn = findViewById(R.id.request_dnd_btn);
+        Button yourGiftBtn = findViewById(R.id.your_gift_btn);
 
         // Hardcode configurations as requested
         final String lockUrl = "https://remote-phone-alarm.onrender.com";
@@ -88,7 +89,13 @@ public class MainActivity extends AppCompatActivity {
             saveBtn.setText("Connected & Locked ✔");
             saveBtn.setBackgroundResource(R.drawable.button_disabled_background);
             saveBtn.setTextColor(Color.parseColor("#94A3B8"));
+            yourGiftBtn.setVisibility(android.view.View.VISIBLE);
         }
+
+        yourGiftBtn.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, GiftViewActivity.class);
+            startActivity(intent);
+        });
 
         // Setup Listeners
         saveBtn.setOnClickListener(v -> {
@@ -130,6 +137,7 @@ public class MainActivity extends AppCompatActivity {
             saveBtn.setText("Connected & Locked ✔");
             saveBtn.setBackgroundResource(R.drawable.button_disabled_background);
             saveBtn.setTextColor(Color.parseColor("#94A3B8"));
+            yourGiftBtn.setVisibility(android.view.View.VISIBLE);
 
             Toast.makeText(this, "Configuration saved and locked!", Toast.LENGTH_SHORT).show();
             

@@ -30,6 +30,36 @@ if (!fs.existsSync(RECORDINGS_DIR)) {
   fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
 }
 
+// Multer and gifts configuration
+const multer = require('multer');
+const GIFTS_DIR = path.join(UPLOADS_DIR, 'gifts');
+if (!fs.existsSync(GIFTS_DIR)) {
+  fs.mkdirSync(GIFTS_DIR, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, GIFTS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'gift-' + uniqueSuffix + ext);
+  }
+});
+
+const uploadGiftsMulter = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // limit 5MB per file
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+}).array('photos', 20); // support up to 20 photos at once
+
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
 
@@ -952,6 +982,101 @@ app.post('/api/recordings/delete', authenticateAdmin, (req, res) => {
 
   console.log(`🎙️ Call recording deleted: ${rec.filename}`);
   res.json({ success: true, message: 'Recording deleted successfully' });
+});
+
+// 15. GET Fetch all gifts for specific email
+app.get('/api/gifts', (req, res) => {
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  res.json({ success: true, gifts: userState.gifts || [] });
+});
+
+// 16. POST Upload multiple gifts (called by Web Client)
+app.post('/api/gifts/upload', authenticateAdmin, (req, res) => {
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  uploadGiftsMulter(req, res, (err) => {
+    if (err) {
+      console.error('Multer error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, error: 'No files uploaded' });
+    }
+
+    const db = readDb();
+    const userState = getUserState(db, normalizedEmail);
+
+    if (!userState.gifts) {
+      userState.gifts = [];
+    }
+
+    const newGifts = req.files.map(file => {
+      const giftItem = {
+        id: 'gift_' + Date.now() + '_' + Math.round(Math.random() * 1e6),
+        filename: file.filename,
+        url: `/uploads/gifts/${file.filename}`,
+        uploadedAt: new Date().toISOString()
+      };
+      userState.gifts.push(giftItem);
+      return giftItem;
+    });
+
+    writeDb(db);
+    console.log(`🎁 Uploaded ${newGifts.length} new gifts for ${normalizedEmail}`);
+    res.json({ success: true, gifts: newGifts });
+  });
+});
+
+// 17. POST Delete a specific gift
+app.post('/api/gifts/delete', authenticateAdmin, (req, res) => {
+  const { email, giftId } = req.body;
+  if (!email || !giftId) {
+    return res.status(400).json({ success: false, error: 'Email and giftId are required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  if (!userState.gifts) {
+    return res.status(404).json({ success: false, error: 'No gifts found' });
+  }
+
+  const giftIndex = userState.gifts.findIndex(g => g.id === giftId);
+  if (giftIndex === -1) {
+    return res.status(404).json({ success: false, error: 'Gift not found' });
+  }
+
+  const gift = userState.gifts[giftIndex];
+  const filePath = path.join(GIFTS_DIR, gift.filename);
+
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (err) {
+    console.error('Error deleting gift file:', err);
+  }
+
+  userState.gifts.splice(giftIndex, 1);
+  writeDb(db);
+
+  console.log(`🎁 Gift deleted: ${gift.filename} for ${normalizedEmail}`);
+  res.json({ success: true, message: 'Gift deleted successfully' });
 });
 
 

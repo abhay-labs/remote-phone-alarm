@@ -1100,3 +1100,72 @@ body.theme-white .status-card-stat {
 .bar-anim {
   animation: bounce-bar 0.6s infinite ease-in-out alternate;
 }
+
+/* Puchku Gifts Photo Gallery & Upload */
+#gift-upload-zone.dragover {
+  border-color: #E11D48 !important;
+  background: rgba(244, 63, 94, 0.08) !important;
+  transform: scale(1.02);
+}
+
+.gift-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border: 1px solid var(--theme-border);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  transition: var(--transition-fast);
+}
+
+.gift-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(136, 19, 55, 0.12);
+}
+
+.gift-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.gift-card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to top, rgba(136, 19, 55, 0.8) 0%, rgba(136, 19, 55, 0) 60%);
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 8px;
+  opacity: 0;
+  transition: var(--transition-fast);
+}
+
+.gift-card:hover .gift-card-overlay {
+  opacity: 1;
+}
+
+.gift-delete-btn {
+  background: #EF4444;
+  color: #FFFFFF;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+}
+
+.gift-delete-btn:hover {
+  background: #DC2626;
+  transform: scale(1.1);
+}
+

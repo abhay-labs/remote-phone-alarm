@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFF1F2">
+
+    <!-- ViewPager2 for Slideshow -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/gift_viewpager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Romantic Heart/Love Overlay Gradient -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="250dp"
+        android:layout_alignParentBottom="true"
+        android:background="@drawable/bottom_gradient" />
+
+    <!-- Romantic Overlay Card for Love Quotes -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/quote_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="20dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp"
+        app:cardBackgroundColor="#FFFFF0"> <!-- Ivory/Warm Romantic Card -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp"
+            android:gravity="center">
+
+            <!-- Heart Icon Decorator -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💖"
+                android:textSize="24sp"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Love Quote Text -->
+            <TextView
+                android:id="@+id/quote_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="“I love you not only for what you are, but for what I am when I am with you.”"
+                android:textColor="#BE123C"
+                android:textSize="16sp"
+                android:textStyle="italic|bold"
+                android:gravity="center"
+                android:lineSpacingExtra="4sp"/>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Close Button (Heart Theme) -->
+    <ImageButton
+        android:id="@+id/close_btn"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="20dp"
+        android:background="@drawable/heart_close_bg"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:contentDescription="Close"
+        app:tint="#BE123C"
+        android:elevation="6dp" />
+
+    <!-- Empty/No Gifts state indicator -->
+    <LinearLayout
+        android:id="@+id/empty_gifts_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="40dp"
+        android:background="#FFF1F2"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎁"
+            android:textSize="80sp"
+            android:layout_marginBottom="20dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="No gifts uploaded yet! 💖"
+            android:textColor="#BE123C"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="10dp"
+            android:gravity="center"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Upload romantic photos from the control panel to see them here."
+            android:textColor="#F43F5E"
+            android:textSize="14sp"
+            android:gravity="center"/>
+    </LinearLayout>
+
+    <!-- Loading indicator -->
+    <ProgressBar
+        android:id="@+id/gift_loading"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:indeterminateTint="#BE123C" />
+
+</RelativeLayout>

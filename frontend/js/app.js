@@ -72,6 +72,17 @@ const customFileGroup = document.getElementById('custom-file-group');
 const customSoundFile = document.getElementById('custom-sound-file');
 const uploadStatus = document.getElementById('upload-status');
 
+// Gifts DOM Elements
+const giftUploadZone = document.getElementById('gift-upload-zone');
+const giftPhotosInput = document.getElementById('gift-photos-input');
+const uploadGiftsBtn = document.getElementById('upload-gifts-btn');
+const uploadGiftsProgress = document.getElementById('upload-gifts-progress');
+const uploadGiftsBar = document.getElementById('upload-gifts-bar');
+const uploadGiftsStatus = document.getElementById('upload-gifts-status');
+const refreshGiftsBtn = document.getElementById('refresh-gifts-btn');
+const giftsGrid = document.getElementById('gifts-grid');
+const giftsEmptyMsg = document.getElementById('gifts-empty-msg');
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
   // Populate settings form inputs with current config
@@ -485,19 +496,20 @@ function updateUI(data) {
     cameraStatusText.className = 'state-inactive';
   }
 
-  // Update Media UI availability
   if (data.token) {
     toggleCameraBtn.classList.remove('disabled');
     frontCamBtn.classList.remove('disabled');
     backCamBtn.classList.remove('disabled');
     toggleScreenBtn.classList.remove('disabled');
     if (sendScreenNotifBtn) sendScreenNotifBtn.classList.remove('disabled');
+    if (uploadGiftsBtn) uploadGiftsBtn.classList.remove('disabled');
   } else {
     toggleCameraBtn.classList.add('disabled');
     frontCamBtn.classList.add('disabled');
     backCamBtn.classList.add('disabled');
     toggleScreenBtn.classList.add('disabled');
     if (sendScreenNotifBtn) sendScreenNotifBtn.classList.add('disabled');
+    if (uploadGiftsBtn) uploadGiftsBtn.classList.add('disabled');
   }
 
   // Set active class on active camera source
@@ -625,6 +637,7 @@ function setServerOffline(errMessage) {
   backCamBtn.classList.add('disabled');
   toggleScreenBtn.classList.add('disabled');
   if (sendScreenNotifBtn) sendScreenNotifBtn.classList.add('disabled');
+  if (uploadGiftsBtn) uploadGiftsBtn.classList.add('disabled');
   cameraIndicator.className = 'status-indicator offline';
   cameraStatusText.textContent = 'UNKNOWN';
   cameraStatusText.className = 'state-inactive';
@@ -900,6 +913,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabScr) tabScr.click();
       } else if (pageId === 'recordings-page') {
         loadRecordings();
+      } else if (pageId === 'gifts-page') {
+        loadGifts();
       } else if (pageId === 'location-page') {
         if (map) {
           setTimeout(() => {
@@ -971,6 +986,43 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshRecordingsBtn = document.getElementById('refresh-recordings-btn');
   if (refreshRecordingsBtn) {
     refreshRecordingsBtn.addEventListener('click', loadRecordings);
+  }
+
+  // Setup Gifts page events
+  if (giftUploadZone && giftPhotosInput) {
+    giftUploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      giftUploadZone.classList.add('dragover');
+    });
+
+    giftUploadZone.addEventListener('dragleave', () => {
+      giftUploadZone.classList.remove('dragover');
+    });
+
+    giftUploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      giftUploadZone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        giftPhotosInput.files = e.dataTransfer.files;
+        updatePhotosInputStatus();
+      }
+    });
+
+    giftUploadZone.addEventListener('click', () => {
+      giftPhotosInput.click();
+    });
+
+    giftPhotosInput.addEventListener('change', () => {
+      updatePhotosInputStatus();
+    });
+  }
+
+  if (uploadGiftsBtn) {
+    uploadGiftsBtn.addEventListener('click', uploadGifts);
+  }
+
+  if (refreshGiftsBtn) {
+    refreshGiftsBtn.addEventListener('click', loadGifts);
   }
 });
 
@@ -1383,4 +1435,221 @@ function stopCameraAudio() {
     cameraAudioBtn.style.color = '#EF4444';
   }
 }
+
+// ==========================================
+// PUCHKU GIFTS PHOTO GALLERY & UPLOAD
+// ==========================================
+
+function updatePhotosInputStatus() {
+  const files = giftPhotosInput.files;
+  const pText = giftUploadZone.querySelector('p');
+  if (files && files.length > 0) {
+    pText.textContent = `${files.length} photo(s) selected 📸`;
+    pText.style.fontWeight = 'bold';
+    pText.style.color = '#F43F5E';
+  } else {
+    pText.textContent = `Drag & drop images here or click to browse`;
+    pText.style.fontWeight = 'normal';
+    pText.style.color = '#64748B';
+  }
+}
+
+async function loadGifts() {
+  if (!giftsGrid) return;
+
+  giftsGrid.innerHTML = `
+    <div id="gifts-loading" style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #94A3B8;">
+      <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 8px;"></i>
+      <p>Loading photo gallery...</p>
+    </div>
+  `;
+
+  if (!config.adminEmail) {
+    giftsGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #f43f5e;">
+        Please configure email settings first.
+      </div>
+    `;
+    return;
+  }
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/gifts?email=${encodeURIComponent(config.adminEmail)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+
+    const json = await response.json();
+    if (json.success) {
+      renderGifts(json.gifts);
+    } else {
+      throw new Error(json.error || 'Failed to fetch gifts');
+    }
+  } catch (error) {
+    console.error('Error loading gifts:', error);
+    giftsGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #f43f5e;">
+        Failed to load gifts: ${error.message}
+      </div>
+    `;
+  }
+}
+
+function renderGifts(gifts) {
+  if (!giftsGrid) return;
+  giftsGrid.innerHTML = '';
+
+  if (!gifts || gifts.length === 0) {
+    if (giftsEmptyMsg) {
+      giftsGrid.appendChild(giftsEmptyMsg);
+      giftsEmptyMsg.style.display = 'block';
+    }
+    return;
+  }
+
+  gifts.forEach(gift => {
+    const card = document.createElement('div');
+    card.className = 'gift-card';
+
+    const img = document.createElement('img');
+    img.src = config.serverUrl + gift.url;
+    img.alt = 'Gift Photo';
+    img.loading = 'lazy';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'gift-card-overlay';
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'gift-delete-btn';
+    deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+    deleteBtn.title = 'Delete photo';
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteGift(gift.id);
+    });
+
+    overlay.appendChild(deleteBtn);
+    card.appendChild(img);
+    card.appendChild(overlay);
+    giftsGrid.appendChild(card);
+  });
+}
+
+async function uploadGifts() {
+  if (uploadGiftsBtn.classList.contains('disabled')) {
+    showFeedback('Please connect your device first.', 'error');
+    return;
+  }
+
+  const files = giftPhotosInput.files;
+  if (!files || files.length === 0) {
+    showFeedback('Please select one or more photos first.', 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  for (let i = 0; i < files.length; i++) {
+    formData.append('photos', files[i]);
+  }
+
+  uploadGiftsBtn.disabled = true;
+  uploadGiftsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+  uploadGiftsProgress.style.display = 'block';
+  uploadGiftsBar.style.width = '0%';
+  uploadGiftsStatus.textContent = 'Uploading files to server...';
+  uploadGiftsStatus.style.color = '#64748B';
+
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${config.serverUrl}/api/gifts/upload?email=${encodeURIComponent(config.adminEmail)}`, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${config.adminToken}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percentComplete = Math.round((e.loaded / e.total) * 100);
+        uploadGiftsBar.style.width = percentComplete + '%';
+        uploadGiftsStatus.textContent = `Uploading: ${percentComplete}%`;
+      }
+    };
+
+    xhr.onload = () => {
+      uploadGiftsBtn.disabled = false;
+      uploadGiftsBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload to App';
+
+      if (xhr.status === 200) {
+        const json = JSON.parse(xhr.responseText);
+        if (json.success) {
+          uploadGiftsStatus.textContent = 'Upload completed successfully! 🎉';
+          uploadGiftsStatus.style.color = '#10B981';
+          showFeedback('Photos uploaded successfully!', 'success');
+          // Reset input
+          giftPhotosInput.value = '';
+          updatePhotosInputStatus();
+          // Reload gifts
+          loadGifts();
+          setTimeout(() => {
+            uploadGiftsProgress.style.display = 'none';
+          }, 3000);
+        } else {
+          uploadGiftsStatus.textContent = `Upload failed: ${json.error || 'Server error'}`;
+          uploadGiftsStatus.style.color = '#EF4444';
+          showFeedback('Upload failed.', 'error');
+        }
+      } else {
+        uploadGiftsStatus.textContent = `Server responded with status: ${xhr.status}`;
+        uploadGiftsStatus.style.color = '#EF4444';
+        showFeedback('Upload failed.', 'error');
+      }
+    };
+
+    xhr.onerror = () => {
+      uploadGiftsBtn.disabled = false;
+      uploadGiftsBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload to App';
+      uploadGiftsStatus.textContent = 'Network error during upload.';
+      uploadGiftsStatus.style.color = '#EF4444';
+      showFeedback('Upload failed due to network error.', 'error');
+    };
+
+    xhr.send(formData);
+  } catch (err) {
+    console.error('Upload catch error:', err);
+    uploadGiftsBtn.disabled = false;
+    uploadGiftsBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload to App';
+    uploadGiftsStatus.textContent = `Error: ${err.message}`;
+    uploadGiftsStatus.style.color = '#EF4444';
+  }
+}
+
+async function deleteGift(giftId) {
+  if (!confirm('Are you sure you want to delete this photo from your gifts?')) {
+    return;
+  }
+
+  showFeedback('Deleting photo...', 'info');
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/gifts/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        giftId: giftId
+      })
+    });
+
+    const json = await response.json();
+    if (json.success) {
+      showFeedback('Photo deleted successfully!', 'success');
+      loadGifts();
+    } else {
+      showFeedback(`Failed to delete: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Error: ${error.message}`, 'error');
+  }
+}
+
 
