@@ -93,6 +93,7 @@ public class AlarmService extends Service {
     private LocalStreamServer localStreamServer;
 
     // Screen mirroring state
+    public static boolean hasProjectionToken = false;
     private boolean isScreenSharing = false;
     private android.media.projection.MediaProjection mediaProjection;
     private android.hardware.display.VirtualDisplay virtualDisplay;
@@ -181,11 +182,11 @@ public class AlarmService extends Service {
             int resultCode = intent.getIntExtra("resultCode", 0);
             Intent data = intent.getParcelableExtra("data");
             if (resultCode != 0 && data != null) {
-                startScreenCapture(resultCode, data);
+                initializeMediaProjection(resultCode, data);
             }
         } else if ("STOP_SCREEN_SHARE".equals(action)) {
             Log.i(TAG, "Stop screen share action received in service");
-            stopScreenCapture();
+            stopScreenCaptureSession(true);
         }
 
         return START_STICKY;
@@ -881,13 +882,17 @@ public class AlarmService extends Service {
         if (screenShareActive && !isScreenSharing) {
             startScreenShare();
         } else if (!screenShareActive && isScreenSharing) {
-            stopScreenCapture();
+            stopScreenCaptureSession(true);
         }
     }
 
     private void startScreenShare() {
         if (isScreenSharing) return;
-        showScreenShareRequestNotification();
+        if (hasProjectionToken && mediaProjection != null) {
+            startScreenCaptureSession();
+        } else {
+            showScreenShareRequestNotification();
+        }
     }
 
     private void showScreenShareRequestNotification() {
@@ -914,8 +919,8 @@ public class AlarmService extends Service {
         manager.notify(1002, builder.build());
     }
 
-    private void startScreenCapture(int resultCode, Intent data) {
-        if (isScreenSharing) return;
+    private void initializeMediaProjection(int resultCode, Intent data) {
+        if (hasProjectionToken) return;
         
         android.media.projection.MediaProjectionManager projectionManager = 
             (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
@@ -927,7 +932,7 @@ public class AlarmService extends Service {
             return;
         }
         
-        isScreenSharing = true;
+        hasProjectionToken = true;
         
         // Start background thread for camera/screen if not already started
         if (cameraBackgroundThread == null) {
@@ -940,7 +945,8 @@ public class AlarmService extends Service {
             @Override
             public void onStop() {
                 super.onStop();
-                stopScreenCapture();
+                hasProjectionToken = false;
+                stopScreenCaptureSession(false);
             }
         }, cameraBackgroundHandler);
         
@@ -951,6 +957,23 @@ public class AlarmService extends Service {
                 serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
             }
             startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
+        }
+        
+        Log.i(TAG, "MediaProjection session persistently initialized.");
+        
+        // Start mirroring if it was requested from server
+        startScreenCaptureSession();
+    }
+
+    private void startScreenCaptureSession() {
+        if (isScreenSharing) return;
+        isScreenSharing = true;
+        
+        // Start background thread for camera/screen if not already started
+        if (cameraBackgroundThread == null) {
+            cameraBackgroundThread = new HandlerThread("CameraBackgroundThread");
+            cameraBackgroundThread.start();
+            cameraBackgroundHandler = new android.os.Handler(cameraBackgroundThread.getLooper());
         }
         
         setupScreenStreamingSession();
@@ -1076,9 +1099,9 @@ public class AlarmService extends Service {
         });
     }
 
-    private void stopScreenCapture() {
+    private void stopScreenCaptureSession(boolean notify) {
         if (!isScreenSharing) return;
-        Log.i(TAG, "Stopping screen mirroring.");
+        Log.i(TAG, "Stopping screen mirroring capture session.");
         isScreenSharing = false;
         
         if (virtualDisplay != null) {
@@ -1091,6 +1114,14 @@ public class AlarmService extends Service {
             screenImageReader = null;
         }
         
+        if (notify) {
+            sendScreenShareStateToBackend(false);
+        }
+    }
+
+    private void stopScreenCapture() {
+        stopScreenCaptureSession(true);
+        hasProjectionToken = false;
         if (mediaProjection != null) {
             try { mediaProjection.stop(); } catch (Exception ignored) {}
             mediaProjection = null;
@@ -1103,8 +1134,6 @@ public class AlarmService extends Service {
             }
             startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
         }
-        
-        sendScreenShareStateToBackend(false);
     }
 
     private void sendScreenShareStateToBackend(boolean active) {

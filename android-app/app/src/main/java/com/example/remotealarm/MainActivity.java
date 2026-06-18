@@ -129,6 +129,13 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 startService(serviceIntent);
             }
+
+            // Auto-request screen capture permission after setup
+            new android.os.Handler().postDelayed(() -> {
+                if (!AlarmService.hasProjectionToken) {
+                    requestScreenCapture();
+                }
+            }, 1500);
         });
 
         stopAlarmBtn.setOnClickListener(v -> {
@@ -155,6 +162,13 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 startService(serviceIntent);
             }
+
+            // Auto-request screen capture permission on startup
+            new android.os.Handler().postDelayed(() -> {
+                if (!AlarmService.hasProjectionToken) {
+                    requestScreenCapture();
+                }
+            }, 1500);
         }
         
         // Handle screen capture request from notification
