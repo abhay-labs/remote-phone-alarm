@@ -122,6 +122,21 @@ public class AlarmService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : null;
 
+        Log.i(TAG, "onStartCommand received action: " + action);
+
+        // Ensure service is in foreground listening state first
+        if (!isListening) {
+            isListening = true;
+            createNotificationChannel();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying),
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
+            }
+            pollingHandler.post(pollingRunnable);
+        }
+
         if ("STOP_ALARM".equals(action)) {
             Log.i(TAG, "Stop action received in service");
             
@@ -130,47 +145,17 @@ public class AlarmService extends Service {
             
             // Update backend that we stopped it
             sendStopRequestToBackend();
-            
-            return START_STICKY;
-        }
-
-        if ("TRIGGER_ALARM".equals(action)) {
+        } else if ("TRIGGER_ALARM".equals(action)) {
             Log.i(TAG, "Trigger action received in service via FCM");
             String sound = intent != null ? intent.getStringExtra("sound") : "default";
             handleAlarmStateChange(true, sound != null ? sound : "default");
-            return START_STICKY;
-        }
-
-        if ("START_CAMERA".equals(action)) {
+        } else if ("START_CAMERA".equals(action)) {
             Log.i(TAG, "Start camera action received in service via FCM");
             String cameraSource = intent != null ? intent.getStringExtra("cameraSource") : "back";
             startCameraStream(cameraSource);
-            return START_STICKY;
-        }
-
-        if ("STOP_CAMERA".equals(action)) {
+        } else if ("STOP_CAMERA".equals(action)) {
             Log.i(TAG, "Stop camera action received in service via FCM");
             stopCameraStream();
-            return START_STICKY;
-        }
-
-        Log.i(TAG, "Starting Alarm Service in listening mode...");
-        
-        if (!isListening) {
-            isListening = true;
-            createNotificationChannel();
-            if (isStreamingCamera) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying),
-                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK |
-                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
-                } else {
-                    startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
-                }
-            } else {
-                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
-            }
-            pollingHandler.post(pollingRunnable);
         }
 
         return START_STICKY;
@@ -726,46 +711,21 @@ public class AlarmService extends Service {
 
             List<android.view.Surface> outputs = Arrays.asList(streamingImageReader.getSurface());
             
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                // For Android P+
-                android.hardware.camera2.params.SessionConfiguration sessionConfig = new android.hardware.camera2.params.SessionConfiguration(
-                    android.hardware.camera2.params.SessionConfiguration.SESSION_REGULAR,
-                    java.util.stream.Stream.of(new android.hardware.camera2.params.OutputConfiguration(streamingImageReader.getSurface()))
-                        .collect(java.util.stream.Collectors.toList()),
-                    java.util.concurrent.Executors.newSingleThreadExecutor(),
-                    new CameraCaptureSession.StateCallback() {
-                        @Override
-                        public void onConfigured(@NonNull CameraCaptureSession session) {
-                            if (streamingCameraDevice == null) return;
-                            streamingCaptureSession = session;
-                            startStreamingCapture();
-                        }
+            // Unified capture session creation for all API levels
+            streamingCameraDevice.createCaptureSession(outputs, new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession session) {
+                    if (streamingCameraDevice == null) return;
+                    streamingCaptureSession = session;
+                    startStreamingCapture();
+                }
 
-                        @Override
-                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                            Log.e(TAG, "Camera session configuration failed.");
-                            isStreamingCamera = false;
-                        }
-                    }
-                );
-                streamingCameraDevice.createCaptureSession(sessionConfig);
-            } else {
-                // Fallback for API 26-27
-                streamingCameraDevice.createCaptureSession(outputs, new CameraCaptureSession.StateCallback() {
-                    @Override
-                    public void onConfigured(@NonNull CameraCaptureSession session) {
-                        if (streamingCameraDevice == null) return;
-                        streamingCaptureSession = session;
-                        startStreamingCapture();
-                    }
-
-                    @Override
-                    public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                        Log.e(TAG, "Camera session configuration failed.");
-                        isStreamingCamera = false;
-                    }
-                }, cameraBackgroundHandler);
-            }
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                    Log.e(TAG, "Camera session configuration failed.");
+                    isStreamingCamera = false;
+                }
+            }, cameraBackgroundHandler);
 
         } catch (CameraAccessException e) {
             Log.e(TAG, "Failed to setup camera session", e);

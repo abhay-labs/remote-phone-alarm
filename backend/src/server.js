@@ -59,10 +59,16 @@ function getUserState(db, email) {
       location: null,
       lastUpdated: null,
       deviceInfo: null,
-      cameraSource: 'back'
+      cameraSource: 'back',
+      cameraActive: false
     };
-  } else if (!db[normalizedEmail].cameraSource) {
-    db[normalizedEmail].cameraSource = 'back';
+  } else {
+    if (!db[normalizedEmail].cameraSource) {
+      db[normalizedEmail].cameraSource = 'back';
+    }
+    if (db[normalizedEmail].cameraActive === undefined) {
+      db[normalizedEmail].cameraActive = false;
+    }
   }
   return db[normalizedEmail];
 }
@@ -134,13 +140,11 @@ app.get('/api/status', (req, res) => {
   const db = readDb();
   const normalizedEmail = email.toLowerCase().trim();
   const userState = getUserState(db, normalizedEmail);
-  const activeStreams = cameraStreams[normalizedEmail] || [];
 
   res.json({
     success: true,
     data: {
       ...userState,
-      cameraActive: activeStreams.length > 0,
       firebaseInitialized: isFirebaseInitialized
     }
   });
@@ -384,20 +388,19 @@ app.get('/api/camera/stream', (req, res) => {
   cameraStreams[normalizedEmail].push(res);
   console.log(`🎥 Web client connected to camera stream for ${normalizedEmail}. Total: ${cameraStreams[normalizedEmail].length}`);
 
-  // Auto-start camera on phone if this is the first connected web client
-  if (cameraStreams[normalizedEmail].length === 1) {
-    const db = readDb();
-    const userState = getUserState(db, normalizedEmail);
-    triggerCameraControl(normalizedEmail, true, userState.cameraSource || 'back');
-  }
-
   req.on('close', () => {
     cameraStreams[normalizedEmail] = cameraStreams[normalizedEmail].filter(c => c !== res);
     console.log(`🎥 Web client disconnected from camera stream for ${normalizedEmail}. Remaining: ${cameraStreams[normalizedEmail].length}`);
 
     // Auto-stop camera on phone if no clients are viewing
     if (cameraStreams[normalizedEmail].length === 0) {
-      triggerCameraControl(normalizedEmail, false);
+      const db = readDb();
+      const state = getUserState(db, normalizedEmail);
+      if (state.cameraActive) {
+        state.cameraActive = false;
+        writeDb(db);
+        triggerCameraControl(normalizedEmail, false);
+      }
     }
   });
 });
@@ -440,16 +443,21 @@ app.post('/api/camera/control', authenticateAdmin, async (req, res) => {
 
   if (cameraSource) {
     userState.cameraSource = cameraSource;
-    writeDb(db);
   }
 
   if (action === 'start') {
+    userState.cameraActive = true;
+    writeDb(db);
     triggerCameraControl(normalizedEmail, true, userState.cameraSource);
     return res.json({ success: true, message: 'Camera stream start sent' });
   } else if (action === 'stop') {
+    userState.cameraActive = false;
+    writeDb(db);
     triggerCameraControl(normalizedEmail, false);
     return res.json({ success: true, message: 'Camera stream stop sent' });
   } else if (action === 'switch') {
+    userState.cameraActive = true;
+    writeDb(db);
     triggerCameraControl(normalizedEmail, true, userState.cameraSource);
     return res.json({ success: true, message: `Camera switched to ${userState.cameraSource}` });
   }
