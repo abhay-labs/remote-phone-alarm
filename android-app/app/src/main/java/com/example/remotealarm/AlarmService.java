@@ -94,6 +94,8 @@ public class AlarmService extends Service {
 
     // Screen mirroring state
     public static boolean hasProjectionToken = false;
+    public static int pendingResultCode = 0;
+    public static Intent pendingIntentData = null;
     private boolean isScreenSharing = false;
     private android.media.projection.MediaProjection mediaProjection;
     private android.hardware.display.VirtualDisplay virtualDisplay;
@@ -106,6 +108,7 @@ public class AlarmService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        CrashLogger.init(getApplicationContext());
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         httpClient = new OkHttpClient();
@@ -179,9 +182,11 @@ public class AlarmService extends Service {
             startScreenShare();
         } else if ("ALLOW_SCREEN_SHARE".equals(action)) {
             Log.i(TAG, "Allow screen share action received with token");
-            int resultCode = intent.getIntExtra("resultCode", 0);
-            Intent data = intent.getParcelableExtra("data");
+            int resultCode = pendingResultCode;
+            Intent data = pendingIntentData;
             if (resultCode != 0 && data != null) {
+                pendingResultCode = 0;
+                pendingIntentData = null;
                 initializeMediaProjection(resultCode, data);
             }
         } else if ("STOP_SCREEN_SHARE".equals(action)) {
@@ -930,7 +935,11 @@ public class AlarmService extends Service {
             if (isStreamingCamera) {
                 serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
             }
-            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
+            try {
+                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to startForeground with media projection type", e);
+            }
         }
         
         android.media.projection.MediaProjectionManager projectionManager = 
@@ -939,8 +948,8 @@ public class AlarmService extends Service {
         
         try {
             mediaProjection = projectionManager.getMediaProjection(resultCode, data);
-        } catch (SecurityException e) {
-            Log.e(TAG, "SecurityException while calling getMediaProjection", e);
+        } catch (Exception e) {
+            Log.e(TAG, "Exception while calling getMediaProjection", e);
             hasProjectionToken = false;
             return;
         }

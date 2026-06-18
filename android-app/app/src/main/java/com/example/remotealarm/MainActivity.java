@@ -47,6 +47,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Initialize CrashLogger to catch any global exception
+        CrashLogger.init(getApplicationContext());
+        CrashLogger.checkAndUploadPendingCrash(getApplicationContext());
+
         setContentView(R.layout.activity_main);
 
         prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
@@ -347,15 +352,15 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == SCREEN_CAPTURE_REQUEST_CODE) {
             if (resultCode == RESULT_OK && data != null) {
+                // Store result in static variables to avoid binder token serialization/unmarshalling issues
+                AlarmService.pendingResultCode = resultCode;
+                AlarmService.pendingIntentData = data;
+
                 Intent serviceIntent = new Intent(this, AlarmService.class);
                 serviceIntent.setAction("ALLOW_SCREEN_SHARE");
-                serviceIntent.putExtra("resultCode", resultCode);
-                serviceIntent.putExtra("data", data);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(serviceIntent);
-                } else {
-                    startService(serviceIntent);
-                }
+                // Always call startService instead of startForegroundService if the app is already in the foreground,
+                // which avoids ForegroundServiceStartNotAllowedException on Android 14+
+                startService(serviceIntent);
                 Toast.makeText(this, "Screen mirroring starting...", Toast.LENGTH_SHORT).show();
             } else {
                 Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();

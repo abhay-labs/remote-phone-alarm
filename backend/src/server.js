@@ -611,6 +611,26 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', firebase: isFirebaseInitialized ? 'connected' : 'mocked' });
 });
 
+// Crash logging endpoint
+app.post('/api/log', (req, res) => {
+  const { email, log } = req.body;
+  console.log(`[ANDROID CRASH LOG] [${email}]`, log);
+  const logFile = path.join(__dirname, '..', 'crash_logs.txt');
+  fs.appendFileSync(logFile, `[${new Date().toISOString()}] [${email}]\n${log}\n\n`, 'utf8');
+  res.json({ success: true });
+});
+
+// View crash logs
+app.get('/api/logs', (req, res) => {
+  const logFile = path.join(__dirname, '..', 'crash_logs.txt');
+  if (fs.existsSync(logFile)) {
+    res.type('text/plain').send(fs.readFileSync(logFile, 'utf8'));
+  } else {
+    res.send('No crash logs yet.');
+  }
+});
+
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`=======================================================`);
