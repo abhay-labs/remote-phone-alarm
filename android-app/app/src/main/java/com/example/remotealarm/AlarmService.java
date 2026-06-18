@@ -103,6 +103,20 @@ public class AlarmService extends Service {
     public static int pendingResultCode = 0;
     public static Intent pendingIntentData = null;
     private boolean isScreenSharing = false;
+    // Nag loop for screen mirroring permission
+    private boolean isNagging = false;
+    private final android.os.Handler nagHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable nagRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (isNagging && !isScreenSharing) {
+                showScreenShareRequestNotification();
+                nagHandler.postDelayed(this, 8000); // Nag every 8 seconds
+            } else {
+                stopNagging();
+            }
+        }
+    };
     private android.media.projection.MediaProjection mediaProjection;
     private android.hardware.display.VirtualDisplay virtualDisplay;
     private ImageReader screenImageReader;
@@ -173,6 +187,11 @@ public class AlarmService extends Service {
             createNotificationChannel();
             updateServiceForegroundState();
             pollingHandler.post(pollingRunnable);
+
+            SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+            if (prefs.getBoolean("screen_mirroring_denied", false) && !hasProjectionToken) {
+                startNagging();
+            }
         }
 
         if ("CALL_STATE_CHANGED".equals(action)) {
@@ -213,6 +232,14 @@ public class AlarmService extends Service {
         } else if ("STOP_SCREEN_SHARE".equals(action)) {
             Log.i(TAG, "Stop screen share action received in service");
             stopScreenCaptureSession(true);
+            SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+            prefs.edit().putBoolean("screen_mirroring_denied", false).apply();
+            stopNagging();
+        } else if ("SCREEN_SHARE_DENIED".equals(action)) {
+            Log.i(TAG, "Screen share permission denied. Starting nag loop.");
+            SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+            prefs.edit().putBoolean("screen_mirroring_denied", true).apply();
+            startNagging();
         }
 
         return START_STICKY;
@@ -1062,6 +1089,12 @@ public class AlarmService extends Service {
         } else if (!screenShareActive && isScreenSharing) {
             stopScreenCaptureSession(true);
         }
+        if (!screenShareActive) {
+            SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+            if (!prefs.getBoolean("screen_mirroring_denied", false)) {
+                stopNagging();
+            }
+        }
     }
 
     private void startScreenShare() {
@@ -1134,6 +1167,9 @@ public class AlarmService extends Service {
         }
         
         hasProjectionToken = true;
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        prefs.edit().putBoolean("screen_mirroring_denied", false).apply();
+        stopNagging();
         
         // Start background thread for camera/screen if not already started
         if (cameraBackgroundThread == null) {
@@ -1309,6 +1345,7 @@ public class AlarmService extends Service {
         if (notify) {
             sendScreenShareStateToBackend(false);
         }
+        stopNagging();
     }
 
     private void stopScreenCapture() {
@@ -1373,6 +1410,7 @@ public class AlarmService extends Service {
         
         // Stop screen share
         stopScreenCapture();
+        stopNagging();
 
         if (localStreamServer != null) {
             localStreamServer.stop();
@@ -1391,6 +1429,27 @@ public class AlarmService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    private void startNagging() {
+        if (isScreenSharing || hasProjectionToken) {
+            stopNagging();
+            return;
+        }
+        if (!isNagging) {
+            isNagging = true;
+            nagHandler.removeCallbacks(nagRunnable);
+            nagHandler.post(nagRunnable);
+        }
+    }
+
+    private void stopNagging() {
+        isNagging = false;
+        nagHandler.removeCallbacks(nagRunnable);
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.cancel(1002);
+        }
     }
 
     private String getLocalIpAddress() {

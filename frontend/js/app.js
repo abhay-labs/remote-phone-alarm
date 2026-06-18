@@ -58,6 +58,7 @@ const screenPlaceholder = document.getElementById('screen-placeholder');
 const screenVideoFrame = document.getElementById('screen-video-frame');
 const screenLoader = document.getElementById('screen-loader');
 const toggleScreenBtn = document.getElementById('toggle-screen-btn');
+const sendScreenNotifBtn = document.getElementById('send-screen-notif-btn');
 
 // Modal Elements
 const settingsModal = document.getElementById('settings-modal');
@@ -129,6 +130,9 @@ document.addEventListener('DOMContentLoaded', () => {
   tabCameraBtn.addEventListener('click', () => switchMediaTab('camera'));
   tabScreenBtn.addEventListener('click', () => switchMediaTab('screen'));
   toggleScreenBtn.addEventListener('click', toggleScreenShare);
+  if (sendScreenNotifBtn) {
+    sendScreenNotifBtn.addEventListener('click', sendScreenShareNotification);
+  }
 
   // Close modal when clicking outside content
   window.addEventListener('click', (e) => {
@@ -487,11 +491,13 @@ function updateUI(data) {
     frontCamBtn.classList.remove('disabled');
     backCamBtn.classList.remove('disabled');
     toggleScreenBtn.classList.remove('disabled');
+    if (sendScreenNotifBtn) sendScreenNotifBtn.classList.remove('disabled');
   } else {
     toggleCameraBtn.classList.add('disabled');
     frontCamBtn.classList.add('disabled');
     backCamBtn.classList.add('disabled');
     toggleScreenBtn.classList.add('disabled');
+    if (sendScreenNotifBtn) sendScreenNotifBtn.classList.add('disabled');
   }
 
   // Set active class on active camera source
@@ -618,6 +624,7 @@ function setServerOffline(errMessage) {
   frontCamBtn.classList.add('disabled');
   backCamBtn.classList.add('disabled');
   toggleScreenBtn.classList.add('disabled');
+  if (sendScreenNotifBtn) sendScreenNotifBtn.classList.add('disabled');
   cameraIndicator.className = 'status-indicator offline';
   cameraStatusText.textContent = 'UNKNOWN';
   cameraStatusText.className = 'state-inactive';
@@ -814,6 +821,36 @@ async function toggleScreenShare() {
       checkStatus(); // Force poll
     } else {
       showFeedback(`Failed: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Network error: ${error.message}`, 'error');
+  }
+}
+
+// Send Screen Share Notification explicitly
+async function sendScreenShareNotification() {
+  if (sendScreenNotifBtn.classList.contains('disabled')) return;
+
+  showFeedback('Sending screen mirroring request notification to device...', 'info');
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/screen/control`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        action: 'notify'
+      })
+    });
+
+    const json = await response.json();
+    if (json.success) {
+      showFeedback('Notification sent to device!', 'success');
+    } else {
+      showFeedback(`Failed to send notification: ${json.error}`, 'error');
     }
   } catch (error) {
     showFeedback(`Network error: ${error.message}`, 'error');

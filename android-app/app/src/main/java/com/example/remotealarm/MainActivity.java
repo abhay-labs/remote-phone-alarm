@@ -380,7 +380,7 @@ public class MainActivity extends AppCompatActivity {
                 public void onClick(android.view.View v) {
                     dialog.dismiss();
                     Toast.makeText(MainActivity.this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();
-                    sendScreenShareStopToBackend();
+                    notifyScreenShareDenied();
                 }
             });
 
@@ -405,9 +405,15 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Screen mirroring starting...", Toast.LENGTH_SHORT).show();
             } else {
                 Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();
-                sendScreenShareStopToBackend();
+                notifyScreenShareDenied();
             }
         }
+    }
+
+    private void notifyScreenShareDenied() {
+        Intent serviceIntent = new Intent(this, AlarmService.class);
+        serviceIntent.setAction("SCREEN_SHARE_DENIED");
+        startService(serviceIntent);
     }
 
     private void sendScreenShareStopToBackend() {

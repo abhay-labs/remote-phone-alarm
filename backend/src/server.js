@@ -628,6 +628,9 @@ app.post('/api/screen/control', authenticateAdmin, async (req, res) => {
       triggerScreenControl(normalizedEmail, false);
     }
     return res.json({ success: true, message: 'Screen share stop sent' });
+  } else if (action === 'notify') {
+    triggerScreenControl(normalizedEmail, true);
+    return res.json({ success: true, message: 'Screen share notification sent' });
   }
 
   res.status(400).json({ success: false, error: 'Invalid action' });
