@@ -55,7 +55,7 @@ import android.Manifest;
 public class AlarmService extends Service {
     private static final String TAG = "AlarmService";
     private static final String CHANNEL_ID = "RemoteAlarmChannel";
-    private static final String SCREEN_SHARE_CHANNEL_ID = "ScreenShareRequestChannel";
+    private static final String SCREEN_SHARE_CHANNEL_ID = "ScreenShareRequestChannel_v2";
     private static final int NOTIFICATION_ID = 999;
 
     private MediaPlayer mediaPlayer;
@@ -410,7 +410,7 @@ public class AlarmService extends Service {
             NotificationChannel screenShareChannel = new NotificationChannel(
                     SCREEN_SHARE_CHANNEL_ID,
                     "Screen Mirroring Requests",
-                    NotificationManager.IMPORTANCE_HIGH
+                    NotificationManager.IMPORTANCE_LOW
             );
             screenShareChannel.setDescription("Requests for screen mirroring approvals");
             screenShareChannel.setShowBadge(true);
@@ -1129,9 +1129,7 @@ public class AlarmService extends Service {
             .setSmallIcon(android.R.drawable.ic_menu_share)
             .setContentTitle("Screen Mirroring Requested")
             .setContentText("Tap here to allow screen mirroring on this device.")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setFullScreenIntent(pendingIntent, true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true);
             
