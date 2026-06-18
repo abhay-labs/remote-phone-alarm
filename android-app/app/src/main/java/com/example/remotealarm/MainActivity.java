@@ -108,14 +108,6 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            // Programmatically request Overlay (Draw over other apps) permission if not granted
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                Toast.makeText(this, "Please allow 'Display over other apps' to support remote screen mirroring popups.", Toast.LENGTH_LONG).show();
-                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        android.net.Uri.parse("package:" + getPackageName()));
-                startActivity(intent);
-                return;
-            }
 
             prefs.edit()
                 .putString("backend_url", lockUrl)
@@ -166,13 +158,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Fetch and display Firebase Cloud Messaging Token (registers automatically if already configured)
         if (!savedEmail.isEmpty()) {
-            // Check Overlay (Draw over other apps) permission on startup
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                Toast.makeText(this, "Please allow 'Display over other apps' to support remote screen mirroring popups.", Toast.LENGTH_LONG).show();
-                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        android.net.Uri.parse("package:" + getPackageName()));
-                startActivity(intent);
-            }
 
             fetchAndRegisterFCMToken();
 
