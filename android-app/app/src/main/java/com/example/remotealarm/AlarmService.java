@@ -85,8 +85,9 @@ public class AlarmService extends Service {
     private CameraCaptureSession streamingCaptureSession;
     private ImageReader streamingImageReader;
     private long lastFrameTime = 0;
-    private static final long FRAME_INTERVAL_MS = 160; // Max ~6 frames per second
+    private static final long FRAME_INTERVAL_MS = 66; // Max ~15 frames per second (smooth stream)
     private String activeStreamingCameraId = null;
+    private boolean isUploadingFrame = false;
 
     @Override
     public void onCreate() {
@@ -686,7 +687,7 @@ public class AlarmService extends Service {
                     image = reader.acquireLatestImage();
                     if (image != null && isStreamingCamera) {
                         long now = System.currentTimeMillis();
-                        if (now - lastFrameTime >= FRAME_INTERVAL_MS) {
+                        if (now - lastFrameTime >= FRAME_INTERVAL_MS && !isUploadingFrame) {
                             lastFrameTime = now;
                             
                             // Extract JPEG bytes
@@ -696,6 +697,7 @@ public class AlarmService extends Service {
                                 byte[] bytes = new byte[buffer.remaining()];
                                 buffer.get(bytes);
                                 
+                                isUploadingFrame = true; // Lock upload gate
                                 uploadFrame(bytes);
                             }
                         }
@@ -824,11 +826,13 @@ public class AlarmService extends Service {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(TAG, "Failed to upload camera frame: " + e.getMessage());
+                isUploadingFrame = false; // Release lock
             }
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 response.close();
+                isUploadingFrame = false; // Release lock
             }
         });
     }

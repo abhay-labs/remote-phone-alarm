@@ -44,7 +44,8 @@ const cameraPlaceholder = document.getElementById('camera-placeholder');
 const cameraVideoFrame = document.getElementById('camera-video-frame');
 const cameraLoader = document.getElementById('camera-loader');
 const toggleCameraBtn = document.getElementById('toggle-camera-btn');
-const switchCameraBtn = document.getElementById('switch-camera-btn');
+const frontCamBtn = document.getElementById('front-cam-btn');
+const backCamBtn = document.getElementById('back-cam-btn');
 
 // Modal Elements
 const settingsModal = document.getElementById('settings-modal');
@@ -93,7 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
   ringBtn.addEventListener('click', triggerAlarm);
   stopBtn.addEventListener('click', stopAlarm);
   toggleCameraBtn.addEventListener('click', toggleCamera);
-  switchCameraBtn.addEventListener('click', switchCamera);
+  frontCamBtn.addEventListener('click', () => setCameraSource('front'));
+  backCamBtn.addEventListener('click', () => setCameraSource('back'));
 
   // Close modal when clicking outside content
   window.addEventListener('click', (e) => {
@@ -370,9 +372,21 @@ function updateUI(data) {
   // Update Camera UI
   if (data.token) {
     toggleCameraBtn.classList.remove('disabled');
+    frontCamBtn.classList.remove('disabled');
+    backCamBtn.classList.remove('disabled');
   } else {
     toggleCameraBtn.classList.add('disabled');
-    switchCameraBtn.classList.add('disabled');
+    frontCamBtn.classList.add('disabled');
+    backCamBtn.classList.add('disabled');
+  }
+
+  // Set active class on active camera source
+  if (data.cameraSource === 'front') {
+    frontCamBtn.classList.add('active');
+    backCamBtn.classList.remove('active');
+  } else {
+    backCamBtn.classList.add('active');
+    frontCamBtn.classList.remove('active');
   }
 
   if (data.cameraActive) {
@@ -381,7 +395,6 @@ function updateUI(data) {
     cameraStatusText.className = 'state-active-label';
     toggleCameraBtn.innerHTML = '<i class="fa-solid fa-video-slash"></i> Stop Feed';
     toggleCameraBtn.classList.add('active');
-    switchCameraBtn.classList.remove('disabled');
 
     const streamUrl = `${config.serverUrl}/api/camera/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`;
     if (cameraVideoFrame.src !== streamUrl) {
@@ -431,7 +444,8 @@ function setServerOffline(errMessage) {
   ringBtn.classList.remove('ringing');
 
   toggleCameraBtn.classList.add('disabled');
-  switchCameraBtn.classList.add('disabled');
+  frontCamBtn.classList.add('disabled');
+  backCamBtn.classList.add('disabled');
   cameraIndicator.className = 'status-indicator offline';
   cameraStatusText.textContent = 'UNKNOWN';
   cameraStatusText.className = 'state-inactive';
@@ -547,24 +561,13 @@ async function toggleCamera() {
   }
 }
 
-// Switch between front and back camera
-async function switchCamera() {
-  if (switchCameraBtn.classList.contains('disabled')) return;
+// Set camera source (front/back)
+async function setCameraSource(source) {
+  if (frontCamBtn.classList.contains('disabled')) return;
 
-  showFeedback('Switching camera...', 'info');
+  showFeedback(`Switching to ${source} camera...`, 'info');
 
   try {
-    // Check status first to see what current cameraSource is
-    const statusRes = await fetch(`${config.serverUrl}/api/status?email=${encodeURIComponent(config.adminEmail)}`);
-    const statusJson = await statusRes.json();
-    if (!statusJson.success) {
-      showFeedback('Failed to retrieve current camera source', 'error');
-      return;
-    }
-
-    const currentSource = statusJson.data.cameraSource || 'back';
-    const nextSource = currentSource === 'front' ? 'back' : 'front';
-
     const response = await fetch(`${config.serverUrl}/api/camera/control`, {
       method: 'POST',
       headers: {
@@ -574,13 +577,13 @@ async function switchCamera() {
       body: JSON.stringify({
         email: config.adminEmail,
         action: 'switch',
-        cameraSource: nextSource
+        cameraSource: source
       })
     });
 
     const json = await response.json();
     if (json.success) {
-      showFeedback(`Switched to ${nextSource} camera!`, 'success');
+      showFeedback(`Switched to ${source} camera!`, 'success');
       checkStatus(); // Force poll
     } else {
       showFeedback(`Failed to switch camera: ${json.error}`, 'error');

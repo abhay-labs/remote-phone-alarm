@@ -881,3 +881,44 @@ body {
   pointer-events: none;
 }
 
+.camera-source-selector {
+  display: flex;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.cam-select-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  transition: var(--transition-smooth);
+}
+
+.cam-select-btn:hover:not(.disabled) {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cam-select-btn.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 10px var(--primary-glow);
+}
+
+.cam-select-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
