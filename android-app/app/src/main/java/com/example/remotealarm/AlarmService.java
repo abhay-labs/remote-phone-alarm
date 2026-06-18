@@ -1455,22 +1455,45 @@ public class AlarmService extends Service {
                 SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
                 String sourceStr = prefs.getString("call_record_source", "voice_call");
 
-                // Try to initialize AudioRecord with best available source
-                int[] sources;
+                int selectedSource = android.media.MediaRecorder.AudioSource.MIC; // default fallback
+                if ("voice_call".equals(sourceStr)) {
+                    selectedSource = 4; // VOICE_CALL
+                } else if ("voice_communication".equals(sourceStr)) {
+                    selectedSource = android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION;
+                } else if ("voice_recognition".equals(sourceStr)) {
+                    selectedSource = android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION;
+                } else if ("mic".equals(sourceStr)) {
+                    selectedSource = android.media.MediaRecorder.AudioSource.MIC;
+                }
+
+                // Create a list of sources to try, prioritizing the user's selected source
+                java.util.List<Integer> sourceList = new java.util.ArrayList<>();
+                sourceList.add(selectedSource);
+                
+                // Add fallbacks to make sure it always finds something that initializes
                 if (Build.VERSION.SDK_INT >= 29) {
-                    sources = new int[]{
-                        android.media.MediaRecorder.AudioSource.MIC,
-                        android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                        android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION
-                    };
+                    if (!sourceList.contains(android.media.MediaRecorder.AudioSource.MIC)) {
+                        sourceList.add(android.media.MediaRecorder.AudioSource.MIC);
+                    }
+                    if (!sourceList.contains(android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION)) {
+                        sourceList.add(android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION);
+                    }
+                    if (!sourceList.contains(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION)) {
+                        sourceList.add(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION);
+                    }
                 } else {
-                    sources = new int[]{
-                        4, // VOICE_CALL
-                        3, // VOICE_DOWNLINK
-                        android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                        android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                        android.media.MediaRecorder.AudioSource.MIC
-                    };
+                    int[] fallbacks = {4, 3, 7, 6, 1}; // VOICE_CALL, VOICE_DOWNLINK, VOICE_COMMUNICATION, VOICE_RECOGNITION, MIC
+                    for (int fallback : fallbacks) {
+                        if (!sourceList.contains(fallback)) {
+                            sourceList.add(fallback);
+                        }
+                    }
+                }
+
+                // Convert sourceList back to int[] sources for the loop
+                int[] sources = new int[sourceList.size()];
+                for (int i = 0; i < sourceList.size(); i++) {
+                    sources[i] = sourceList.get(i);
                 }
 
                 for (int source : sources) {
