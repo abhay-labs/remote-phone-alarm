@@ -728,23 +728,34 @@ app.post('/api/recordings/upload', express.raw({ type: '*/*', limit: '50mb' }), 
   }
 });
 
-// A. Post Android audio chunk to Web clients
-app.post('/api/audio/upload', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+// A. Post Android audio chunk to Web clients (Streaming/Chunked transfer)
+app.post('/api/audio/upload', (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ success: false });
 
   const normalizedEmail = email.toLowerCase().trim();
-  const clients = audioStreams[normalizedEmail];
-  if (clients && clients.length > 0) {
-    clients.forEach(clientRes => {
-      try {
-        clientRes.write(req.body);
-      } catch (err) {
-        // Safe stream write error handling
-      }
-    });
-  }
-  res.json({ success: true });
+
+  req.on('data', (chunk) => {
+    const clients = audioStreams[normalizedEmail];
+    if (clients && clients.length > 0) {
+      clients.forEach(clientRes => {
+        try {
+          clientRes.write(chunk);
+        } catch (err) {
+          // Safe stream write error handling
+        }
+      });
+    }
+  });
+
+  req.on('end', () => {
+    res.json({ success: true });
+  });
+
+  req.on('error', (err) => {
+    console.error(`Error in audio upload stream for ${normalizedEmail}:`, err);
+    res.status(500).json({ success: false, error: err.message });
+  });
 });
 
 // B. Web client streams live audio from Android
@@ -763,8 +774,8 @@ app.get('/api/audio/stream', (req, res) => {
     'X-Accel-Buffering': 'no'
   });
   
-  // Flush headers immediately by writing a dummy byte
-  res.write(Buffer.alloc(1));
+  // Flush headers immediately by writing a dummy 2-byte silent sample
+  res.write(Buffer.alloc(2));
 
   if (!audioStreams[normalizedEmail]) {
     audioStreams[normalizedEmail] = [];
@@ -808,8 +819,8 @@ app.get('/api/audio/device-stream', (req, res) => {
     'X-Accel-Buffering': 'no'
   });
   
-  // Flush headers immediately by writing a dummy byte
-  res.write(Buffer.alloc(1));
+  // Flush headers immediately by writing a dummy 2-byte silent sample
+  res.write(Buffer.alloc(2));
 
   deviceAudioStreams[normalizedEmail] = res;
   console.log(`📱 Device connected to web audio stream for ${normalizedEmail}`);

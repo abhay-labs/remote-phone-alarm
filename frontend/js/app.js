@@ -1093,12 +1093,12 @@ async function startHearing() {
       const { done, value } = await reader.read();
       if (done) break;
       
-      if (value && value.byteLength > 0) {
-        const arrayBuffer = value.buffer;
-        const int16Array = new Int16Array(arrayBuffer);
-        const float32Array = new Float32Array(int16Array.length);
-        for (let i = 0; i < int16Array.length; i++) {
-          float32Array[i] = int16Array[i] / 32768.0;
+      if (value && value.byteLength >= 2) {
+        const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
+        const samplesCount = Math.floor(value.byteLength / 2);
+        const float32Array = new Float32Array(samplesCount);
+        for (let i = 0; i < samplesCount; i++) {
+          float32Array[i] = view.getInt16(i * 2, true) / 32768.0;
         }
         
         if (audioContext.state === 'suspended') {
