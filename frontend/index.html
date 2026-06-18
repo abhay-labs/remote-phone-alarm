@@ -395,6 +395,16 @@
           </div>
 
           <div class="form-group">
+            <label for="recording-source-select"><i class="fa-solid fa-microphone"></i> Call Recording Source</label>
+            <select id="recording-source-select">
+              <option value="voice_recognition">Voice Recognition (Recommended Workaround)</option>
+              <option value="voice_communication">Voice Communication (VoIP Optimized)</option>
+              <option value="mic">Standard Microphone (MIC)</option>
+            </select>
+            <small>If recordings are silent, try changing this source setting.</small>
+          </div>
+
+          <div class="form-group">
             <label for="server-url-input">Server API URL</label>
             <input type="url" id="server-url-input" placeholder="e.g. https://remote-phone-alarm.onrender.com" required>
             <small>Backend server base URL. Use <code>https://remote-phone-alarm.onrender.com</code>.</small>

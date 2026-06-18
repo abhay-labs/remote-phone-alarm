@@ -638,6 +638,26 @@ app.get('/api/logs', (req, res) => {
   }
 });
 
+// Update settings endpoint
+app.post('/api/settings', authenticateAdmin, (req, res) => {
+  const { email, callRecordSource } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  if (callRecordSource) {
+    userState.callRecordSource = callRecordSource;
+  }
+
+  writeDb(db);
+  console.log(`⚙️ Settings updated for ${normalizedEmail}: callRecordSource=${callRecordSource}`);
+  res.json({ success: true, message: 'Settings updated successfully' });
+});
+
 // Call Recording upload endpoint
 app.post('/api/recordings/upload', express.raw({ type: 'audio/*', limit: '20mb' }), (req, res) => {
   const { email, number, timestamp } = req.query;

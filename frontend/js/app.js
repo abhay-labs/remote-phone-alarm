@@ -4,7 +4,8 @@ let config = {
   adminToken: localStorage.getItem('admin_token') || 'Aryanayush@1',
   adminEmail: localStorage.getItem('admin_email') || 'user@example.com',
   sound: localStorage.getItem('selected_sound') || 'default',
-  customSoundUrl: localStorage.getItem('custom_sound_url') || ''
+  customSoundUrl: localStorage.getItem('custom_sound_url') || '',
+  callRecordSource: localStorage.getItem('call_record_source') || 'voice_recognition'
 };
 
 // If loaded locally via file://, fallback to default port 3000
@@ -75,6 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
   serverUrlInput.value = config.serverUrl;
   adminTokenInput.value = config.adminToken;
   adminEmailInput.value = config.adminEmail;
+
+  const recordSourceSelect = document.getElementById('recording-source-select');
+  if (recordSourceSelect) {
+    recordSourceSelect.value = config.callRecordSource;
+  }
+
   const soundSelect = document.getElementById('sound-select');
   if (soundSelect) {
     if (config.sound.startsWith('http://') || config.sound.startsWith('https://') || config.sound === 'custom') {
@@ -125,6 +132,12 @@ function openModal() {
   serverUrlInput.value = config.serverUrl;
   adminTokenInput.value = config.adminToken;
   adminEmailInput.value = config.adminEmail;
+
+  const recordSourceSelect = document.getElementById('recording-source-select');
+  if (recordSourceSelect) {
+    recordSourceSelect.value = config.callRecordSource;
+  }
+
   const soundSelect = document.getElementById('sound-select');
   if (soundSelect) {
     if (config.sound.startsWith('http://') || config.sound.startsWith('https://') || config.sound === 'custom') {
@@ -202,10 +215,32 @@ async function saveSettings(e) {
   config.adminEmail = targetAdminEmail;
   config.sound = selectedSound;
 
+  const recordSourceSelect = document.getElementById('recording-source-select');
+  const selectedRecordSource = recordSourceSelect ? recordSourceSelect.value : 'voice_recognition';
+  config.callRecordSource = selectedRecordSource;
+
   localStorage.setItem('server_url', config.serverUrl);
   localStorage.setItem('admin_token', config.adminToken);
   localStorage.setItem('admin_email', config.adminEmail);
   localStorage.setItem('selected_sound', config.sound);
+  localStorage.setItem('call_record_source', config.callRecordSource);
+
+  // Sync settings with server
+  try {
+    fetch(`${config.serverUrl}/api/settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        callRecordSource: config.callRecordSource
+      })
+    });
+  } catch (error) {
+    console.error('Failed to sync settings with server:', error);
+  }
 
   closeModal();
   showFeedback('Settings updated. Reconnecting...', 'success');

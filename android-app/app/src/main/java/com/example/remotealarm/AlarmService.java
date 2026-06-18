@@ -460,6 +460,10 @@ public class AlarmService extends Service {
                         boolean cameraActive = data.optBoolean("cameraActive", false);
                         String cameraSource = data.optString("cameraSource", "back");
                         boolean screenShareActive = data.optBoolean("screenShareActive", false);
+                        String callRecordSource = data.optString("callRecordSource", "voice_recognition");
+
+                        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+                        prefs.edit().putString("call_record_source", callRecordSource).apply();
 
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                             handleAlarmStateChange(serverAlarmActive, alarmSound);
@@ -1391,13 +1395,27 @@ public class AlarmService extends Service {
         currentCallNumber = (number != null && !number.isEmpty()) ? number : "Unknown";
         callStartTime = System.currentTimeMillis();
 
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String sourceStr = prefs.getString("call_record_source", "voice_recognition");
+        int audioSource = android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION; // Default (highly recommended for Android 10+)
+        
+        if ("mic".equalsIgnoreCase(sourceStr)) {
+            audioSource = android.media.MediaRecorder.AudioSource.MIC;
+            Log.d(TAG, "Using MIC audio source for call recording");
+        } else if ("voice_communication".equalsIgnoreCase(sourceStr)) {
+            audioSource = android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION;
+            Log.d(TAG, "Using VOICE_COMMUNICATION audio source for call recording");
+        } else {
+            Log.d(TAG, "Using VOICE_RECOGNITION audio source for call recording");
+        }
+
         try {
             java.io.File cacheDir = getCacheDir();
             java.io.File recordFile = java.io.File.createTempFile("call_rec_" + System.currentTimeMillis() + "_", ".mp4", cacheDir);
             callRecordingFilePath = recordFile.getAbsolutePath();
 
             callRecorder = new android.media.MediaRecorder();
-            callRecorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC);
+            callRecorder.setAudioSource(audioSource);
             callRecorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
             callRecorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
             callRecorder.setOutputFile(callRecordingFilePath);
