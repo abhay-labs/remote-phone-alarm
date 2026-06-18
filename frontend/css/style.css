@@ -1051,6 +1051,18 @@ body.theme-white .status-card-stat {
   }
   .sidebar-brand {
     justify-content: center;
+    gap: 10px;
+  }
+  .sidebar-brand h2 {
+    font-size: 16px;
+  }
+  .sidebar-brand p {
+    font-size: 9px;
+  }
+  .logo-icon-box {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
   }
   .main-content {
     padding: 15px;
@@ -1077,6 +1089,56 @@ body.theme-white .status-card-stat {
   }
   .page-title h1 {
     font-size: 24px;
+  }
+  .map-view-wrapper {
+    height: 320px;
+  }
+  .recordings-table th, .recordings-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .recordings-table audio {
+    min-width: 110px !important;
+    max-width: 140px;
+  }
+  .recording-action-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .screen-viewport-portrait {
+    width: 240px;
+    height: 430px;
+    border-width: 8px;
+    border-radius: 28px;
+  }
+  .phone-speaker-camera {
+    width: 90px;
+    height: 18px;
+    top: 6px;
+  }
+  .phone-lens {
+    width: 6px;
+    height: 6px;
+  }
+  .phone-speaker {
+    width: 30px;
+    height: 3px;
+  }
+  .location-coordinates-bar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+    text-align: center;
+    padding: 12px;
+  }
+  .coordinates-text {
+    font-size: 12px;
+  }
+  .text-link {
+    justify-content: center;
   }
 }
 
