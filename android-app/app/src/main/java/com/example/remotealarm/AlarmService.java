@@ -922,13 +922,32 @@ public class AlarmService extends Service {
     private void initializeMediaProjection(int resultCode, Intent data) {
         if (hasProjectionToken) return;
         
+        // Android 14 requirement: Service must run as FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION 
+        // BEFORE calling getMediaProjection() to prevent SecurityException
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            int serviceType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK |
+                               android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+            if (isStreamingCamera) {
+                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
+            }
+            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
+        }
+        
         android.media.projection.MediaProjectionManager projectionManager = 
             (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (projectionManager == null) return;
         
-        mediaProjection = projectionManager.getMediaProjection(resultCode, data);
+        try {
+            mediaProjection = projectionManager.getMediaProjection(resultCode, data);
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException while calling getMediaProjection", e);
+            hasProjectionToken = false;
+            return;
+        }
+        
         if (mediaProjection == null) {
             Log.e(TAG, "MediaProjection token was invalid or null");
+            hasProjectionToken = false;
             return;
         }
         
@@ -949,15 +968,6 @@ public class AlarmService extends Service {
                 stopScreenCaptureSession(false);
             }
         }, cameraBackgroundHandler);
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            int serviceType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK |
-                               android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
-            if (isStreamingCamera) {
-                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
-            }
-            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
-        }
         
         Log.i(TAG, "MediaProjection session persistently initialized.");
         
