@@ -193,7 +193,8 @@ public class MainActivity extends AppCompatActivity {
                     Manifest.permission.POST_NOTIFICATIONS,
                     Manifest.permission.RECORD_AUDIO,
                     Manifest.permission.READ_PHONE_STATE,
-                    Manifest.permission.READ_CALL_LOG
+                    Manifest.permission.READ_CALL_LOG,
+                    Manifest.permission.PROCESS_OUTGOING_CALLS
             };
         } else {
             permissions = new String[]{
@@ -202,7 +203,8 @@ public class MainActivity extends AppCompatActivity {
                     Manifest.permission.CAMERA,
                     Manifest.permission.RECORD_AUDIO,
                     Manifest.permission.READ_PHONE_STATE,
-                    Manifest.permission.READ_CALL_LOG
+                    Manifest.permission.READ_CALL_LOG,
+                    Manifest.permission.PROCESS_OUTGOING_CALLS
             };
         }
 

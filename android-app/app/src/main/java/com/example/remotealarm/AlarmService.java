@@ -1409,6 +1409,10 @@ public class AlarmService extends Service {
             Log.d(TAG, "Using VOICE_RECOGNITION audio source for call recording");
         }
 
+        // 1. Elevate service state first to secure the microphone while-in-use permission context
+        isRecordingCall = true;
+        updateServiceForegroundState();
+
         try {
             java.io.File cacheDir = getCacheDir();
             java.io.File recordFile = java.io.File.createTempFile("call_rec_" + System.currentTimeMillis() + "_", ".mp4", cacheDir);
@@ -1424,10 +1428,7 @@ public class AlarmService extends Service {
 
             callRecorder.prepare();
             callRecorder.start();
-            isRecordingCall = true;
             Log.i(TAG, "MediaRecorder successfully started: " + callRecordingFilePath);
-
-            updateServiceForegroundState();
         } catch (Exception e) {
             Log.e(TAG, "Failed to start call recording", e);
             cleanupRecorder();

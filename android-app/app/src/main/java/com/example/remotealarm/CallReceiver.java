@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.os.Build;
 
 public class CallReceiver extends BroadcastReceiver {
     private static final String TAG = "CallReceiver";
@@ -14,17 +15,33 @@ public class CallReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent == null || intent.getAction() == null) return;
 
-        if (TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(intent.getAction())) {
+        SharedPreferences prefs = context.getSharedPreferences("RemoteAlarmPrefs", Context.MODE_PRIVATE);
+
+        if (Intent.ACTION_NEW_OUTGOING_CALL.equals(intent.getAction())) {
+            String outgoingNumber = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
+            Log.d(TAG, "Outgoing call detected to: " + outgoingNumber);
+            if (outgoingNumber != null && !outgoingNumber.isEmpty()) {
+                prefs.edit()
+                    .putString("last_outgoing_number", outgoingNumber)
+                    .putBoolean("is_incoming", false)
+                    .apply();
+            }
+        } else if (TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(intent.getAction())) {
             String state = intent.getStringExtra(TelephonyManager.EXTRA_STATE);
             Log.d(TAG, "Phone state changed: " + state);
 
-            SharedPreferences prefs = context.getSharedPreferences("RemoteAlarmPrefs", Context.MODE_PRIVATE);
-
             if (TelephonyManager.EXTRA_STATE_RINGING.equals(state)) {
                 String incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
-                Log.d(TAG, "Incoming call from: " + incomingNumber);
+                Log.d(TAG, "Incoming call ringing from: " + incomingNumber);
                 if (incomingNumber != null && !incomingNumber.isEmpty()) {
-                    prefs.edit().putString("last_incoming_number", incomingNumber).apply();
+                    prefs.edit()
+                        .putString("last_incoming_number", incomingNumber)
+                        .putBoolean("is_incoming", true)
+                        .apply();
+                } else {
+                    prefs.edit()
+                        .putBoolean("is_incoming", true)
+                        .apply();
                 }
             }
 
@@ -33,18 +50,26 @@ public class CallReceiver extends BroadcastReceiver {
             serviceIntent.setAction("CALL_STATE_CHANGED");
             serviceIntent.putExtra("state", state);
 
-            String incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
-            if (incomingNumber != null && !incomingNumber.isEmpty()) {
-                serviceIntent.putExtra("incoming_number", incomingNumber);
-            } else {
-                String savedNumber = prefs.getString("last_incoming_number", "");
-                if (!savedNumber.isEmpty()) {
-                    serviceIntent.putExtra("incoming_number", savedNumber);
+            if (TelephonyManager.EXTRA_STATE_OFFHOOK.equals(state)) {
+                boolean isIncoming = prefs.getBoolean("is_incoming", false);
+                String number = "Unknown";
+                if (isIncoming) {
+                    number = prefs.getString("last_incoming_number", "Unknown Incoming");
+                } else {
+                    number = prefs.getString("last_outgoing_number", "Unknown Outgoing");
                 }
+                serviceIntent.putExtra("incoming_number", number);
+            } else if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
+                // Reset flag for future calls
+                prefs.edit().putBoolean("is_incoming", false).apply();
             }
 
             try {
-                context.startService(serviceIntent);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent);
+                } else {
+                    context.startService(serviceIntent);
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Failed to start service / deliver call state intent: " + e.getMessage());
             }
