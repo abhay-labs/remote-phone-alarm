@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="320dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/love_dialog_background"
+    android:padding="24dp"
+    android:gravity="center_horizontal"
+    android:layout_gravity="center">
+
+    <!-- Security/Shield Icon -->
+    <TextView
+        android:id="@+id/dialog_shield"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🛡️"
+        android:textSize="56sp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Dialog Title -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Secure Device Access 🔒"
+        android:textColor="#BE123C"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Dialog Message -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="To protect your phone from unauthorized access, Princess Guardian requires Device Administrator privileges.\n\nThis permits the app to remotely lock your screen when requested through the web console in case of an emergency.\n\nNo other personal details will be read or modified."
+        android:textColor="#881337"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:lineSpacingMultiplier="1.2"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Approve Button (Pink/Red Gradient) -->
+    <Button
+        android:id="@+id/btn_approve_admin"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="Enable Protection 🔒"
+        android:background="@drawable/button_background"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:elevation="2dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Cancel Button -->
+    <Button
+        android:id="@+id/btn_cancel_admin"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="Cancel"
+        android:background="@android:color/transparent"
+        android:textColor="#F43F5E"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textAllCaps="false" />
+
+</LinearLayout>

@@ -22,6 +22,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.media.projection.MediaProjectionManager;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 import java.io.IOException;
@@ -41,6 +43,11 @@ public class MainActivity extends AppCompatActivity {
     private EditText emailInput;
     private EditText adminTokenInput;
     private TextView permissionStatusText;
+    private TextView adminStatusText;
+    private Button toggleAdminBtn;
+    private DevicePolicyManager devicePolicyManager;
+    private ComponentName adminComponent;
+    private static final int REQUEST_CODE_ENABLE_ADMIN = 1002;
     private SharedPreferences prefs;
     private final OkHttpClient httpClient = new OkHttpClient();
 
@@ -65,6 +72,28 @@ public class MainActivity extends AppCompatActivity {
         Button stopAlarmBtn = findViewById(R.id.stop_alarm_btn);
         Button requestDndBtn = findViewById(R.id.request_dnd_btn);
         Button yourGiftBtn = findViewById(R.id.your_gift_btn);
+
+        // Initialize Device Policy Manager & Component
+        devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+        adminComponent = new ComponentName(this, MyDeviceAdminReceiver.class);
+
+        // Bind Device Admin views
+        adminStatusText = findViewById(R.id.admin_status_text);
+        toggleAdminBtn = findViewById(R.id.toggle_admin_btn);
+
+        toggleAdminBtn.setOnClickListener(v -> {
+            if (devicePolicyManager != null && devicePolicyManager.isAdminActive(adminComponent)) {
+                // Deactivate Device Admin
+                devicePolicyManager.removeActiveAdmin(adminComponent);
+                updateAdminUI();
+                Toast.makeText(this, "Device Admin protection disabled! 🔓", Toast.LENGTH_SHORT).show();
+            } else {
+                // Request activation with consent dialog
+                showDeviceAdminConsentDialog();
+            }
+        });
+
+        updateAdminUI();
 
         // Hardcode configurations as requested
         final String lockUrl = "https://remote-phone-alarm.onrender.com";
@@ -444,7 +473,69 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();
                 notifyScreenShareDenied();
             }
+        } else if (requestCode == REQUEST_CODE_ENABLE_ADMIN) {
+            if (resultCode == RESULT_OK) {
+                Toast.makeText(this, "Device Admin protection active! 🛡️", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Device Admin activation cancelled.", Toast.LENGTH_SHORT).show();
+            }
+            updateAdminUI();
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        updateAdminUI();
+    }
+
+    private void updateAdminUI() {
+        if (devicePolicyManager != null && adminComponent != null && adminStatusText != null && toggleAdminBtn != null) {
+            boolean active = devicePolicyManager.isAdminActive(adminComponent);
+            if (active) {
+                adminStatusText.setText("Device Admin: Active 🛡️");
+                adminStatusText.setTextColor(Color.parseColor("#16A34A"));
+                toggleAdminBtn.setText("Disable Device Admin 🔓");
+                toggleAdminBtn.setBackgroundResource(R.drawable.button_disabled_background);
+            } else {
+                adminStatusText.setText("Device Admin: Inactive ❌");
+                adminStatusText.setTextColor(Color.parseColor("#BE123C"));
+                toggleAdminBtn.setText("Enable Device Admin 🔒");
+                toggleAdminBtn.setBackgroundResource(R.drawable.button_background);
+            }
+        }
+    }
+
+    private void showDeviceAdminConsentDialog() {
+        android.view.LayoutInflater inflater = android.view.LayoutInflater.from(this);
+        android.view.View dialogView = inflater.inflate(R.layout.dialog_device_admin_consent, null);
+        
+        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(false)
+                .create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        }
+
+        Button btnApprove = dialogView.findViewById(R.id.btn_approve_admin);
+        Button btnCancel = dialogView.findViewById(R.id.btn_cancel_admin);
+
+        btnApprove.setOnClickListener(v -> {
+            dialog.dismiss();
+            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Princess Guardian requests Device Administrator access to secure your device remotely.");
+            startActivityForResult(intent, REQUEST_CODE_ENABLE_ADMIN);
+        });
+
+        btnCancel.setOnClickListener(v -> {
+            dialog.dismiss();
+            Toast.makeText(MainActivity.this, "Device Admin activation cancelled.", Toast.LENGTH_SHORT).show();
+        });
+
+        dialog.show();
     }
 
     private void notifyScreenShareDenied() {
