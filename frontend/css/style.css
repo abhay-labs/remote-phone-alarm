@@ -369,6 +369,9 @@ body.theme-violet .glow-bg {
   padding: 30px;
   box-shadow: 0 10px 30px var(--theme-shadow);
   transition: var(--transition-smooth);
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .card:hover {
@@ -419,6 +422,9 @@ body.theme-violet .glow-bg {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 body.theme-white .status-card-stat {
   background: #FFFFFF;
@@ -435,6 +441,8 @@ body.theme-white .status-card-stat {
   font-family: var(--font-title);
   font-size: 22px;
   font-weight: 700;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 /* Red Siren Warning Page Styles */
@@ -1072,6 +1080,7 @@ body.theme-white .status-card-stat {
     border-radius: 16px;
   }
   .card-grid {
+    grid-template-columns: 1fr !important;
     gap: 20px;
   }
   .page-view-header {
