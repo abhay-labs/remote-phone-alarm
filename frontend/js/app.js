@@ -420,7 +420,6 @@ function updateUI(data) {
     cameraStatusText.className = 'state-inactive';
     toggleCameraBtn.innerHTML = '<i class="fa-solid fa-video"></i> Start Feed';
     toggleCameraBtn.classList.remove('active');
-    switchCameraBtn.classList.add('disabled');
 
     cameraPlaceholder.style.display = 'flex';
     cameraPlaceholder.querySelector('p').textContent = 'Stream not started. Click "Start Feed" below.';
