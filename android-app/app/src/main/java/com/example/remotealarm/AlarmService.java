@@ -19,6 +19,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
+import android.telephony.TelephonyManager;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -105,6 +106,13 @@ public class AlarmService extends Service {
     private static final long SCREEN_FRAME_INTERVAL_MS = 100; // max 10 FPS for screen mirroring
     private long lastRemoteScreenUploadTime = 0;
 
+    // Call recording state
+    private android.media.MediaRecorder callRecorder;
+    private boolean isRecordingCall = false;
+    private String currentCallNumber = "Unknown";
+    private String callRecordingFilePath = null;
+    private long callStartTime = 0;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -149,16 +157,15 @@ public class AlarmService extends Service {
         if (!isListening) {
             isListening = true;
             createNotificationChannel();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying),
-                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-            } else {
-                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
-            }
+            updateServiceForegroundState();
             pollingHandler.post(pollingRunnable);
         }
 
-        if ("STOP_ALARM".equals(action)) {
+        if ("CALL_STATE_CHANGED".equals(action)) {
+            String state = intent.getStringExtra("state");
+            String incomingNumber = intent.getStringExtra("incoming_number");
+            handleCallStateChanged(state, incomingNumber);
+        } else if ("STOP_ALARM".equals(action)) {
             Log.i(TAG, "Stop action received in service");
             
             // Turn off alarm locally
@@ -631,11 +638,7 @@ public class AlarmService extends Service {
         activeStreamingCameraId = targetSource;
 
         // Upgrade foreground service notification to camera type
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying),
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK |
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
-        }
+        updateServiceForegroundState();
 
         // Start background thread for camera
         cameraBackgroundThread = new HandlerThread("CameraBackgroundThread");
@@ -839,10 +842,7 @@ public class AlarmService extends Service {
         }
 
         // Reset foreground service notification to normal type
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying),
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-        }
+        updateServiceForegroundState();
     }
 
     private void uploadFrame(byte[] jpegData) {
@@ -929,18 +929,8 @@ public class AlarmService extends Service {
         
         // Android 14 requirement: Service must run as FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION 
         // BEFORE calling getMediaProjection() to prevent SecurityException
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            int serviceType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK |
-                               android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
-            if (isStreamingCamera) {
-                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
-            }
-            try {
-                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to startForeground with media projection type", e);
-            }
-        }
+        isScreenSharing = true;
+        updateServiceForegroundState();
         
         android.media.projection.MediaProjectionManager projectionManager = 
             (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
@@ -985,7 +975,7 @@ public class AlarmService extends Service {
     }
 
     private void startScreenCaptureSession() {
-        if (isScreenSharing) return;
+        if (virtualDisplay != null) return;
         isScreenSharing = true;
         
         // Start background thread for camera/screen if not already started
@@ -1146,13 +1136,7 @@ public class AlarmService extends Service {
             mediaProjection = null;
         }
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            int serviceType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
-            if (isStreamingCamera) {
-                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
-            }
-            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
-        }
+        updateServiceForegroundState();
     }
 
     private void sendScreenShareStateToBackend(boolean active) {
@@ -1359,6 +1343,182 @@ public class AlarmService extends Service {
             cameraClients.clear();
             screenClients.clear();
             Log.i("LocalStreamServer", "Local MJPEG server stopped.");
+        }
+    }
+
+    private void updateServiceForegroundState() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            int serviceType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+            if (isStreamingCamera) {
+                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
+            }
+            if (isScreenSharing) {
+                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+            }
+            if (isRecordingCall) {
+                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
+            }
+            try {
+                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to startForeground dynamically: " + e.getMessage(), e);
+            }
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
+        }
+    }
+
+    private void handleCallStateChanged(String state, String incomingNumber) {
+        if (TelephonyManager.EXTRA_STATE_OFFHOOK.equals(state)) {
+            startCallRecording(incomingNumber);
+        } else if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
+            stopCallRecording();
+        }
+    }
+
+    private void startCallRecording(String number) {
+        if (isRecordingCall) {
+            Log.w(TAG, "Call recording is already in progress.");
+            return;
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "Cannot record call: RECORD_AUDIO permission not granted.");
+            return;
+        }
+
+        Log.i(TAG, "Starting call recording for number: " + number);
+        currentCallNumber = (number != null && !number.isEmpty()) ? number : "Unknown";
+        callStartTime = System.currentTimeMillis();
+
+        try {
+            java.io.File cacheDir = getCacheDir();
+            java.io.File recordFile = java.io.File.createTempFile("call_rec_" + System.currentTimeMillis() + "_", ".mp4", cacheDir);
+            callRecordingFilePath = recordFile.getAbsolutePath();
+
+            callRecorder = new android.media.MediaRecorder();
+            callRecorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC);
+            callRecorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
+            callRecorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
+            callRecorder.setOutputFile(callRecordingFilePath);
+            callRecorder.setAudioSamplingRate(44100);
+            callRecorder.setAudioEncodingBitRate(96000);
+
+            callRecorder.prepare();
+            callRecorder.start();
+            isRecordingCall = true;
+            Log.i(TAG, "MediaRecorder successfully started: " + callRecordingFilePath);
+
+            updateServiceForegroundState();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start call recording", e);
+            cleanupRecorder();
+        }
+    }
+
+    private void stopCallRecording() {
+        if (!isRecordingCall) return;
+
+        Log.i(TAG, "Stopping call recording.");
+        isRecordingCall = false;
+
+        if (callRecorder != null) {
+            try {
+                callRecorder.stop();
+            } catch (Exception e) {
+                Log.e(TAG, "Error stopping MediaRecorder (call was probably too short)", e);
+            }
+            try {
+                callRecorder.release();
+            } catch (Exception ignored) {}
+            callRecorder = null;
+        }
+
+        updateServiceForegroundState();
+
+        if (callRecordingFilePath != null) {
+            final String filePath = callRecordingFilePath;
+            final String number = currentCallNumber;
+            final long startTime = callStartTime;
+
+            new Thread(() -> uploadCallRecording(filePath, number, startTime)).start();
+            callRecordingFilePath = null;
+        }
+    }
+
+    private void cleanupRecorder() {
+        if (callRecorder != null) {
+            try { callRecorder.release(); } catch (Exception ignored) {}
+            callRecorder = null;
+        }
+        isRecordingCall = false;
+        if (callRecordingFilePath != null) {
+            try { new java.io.File(callRecordingFilePath).delete(); } catch (Exception ignored) {}
+            callRecordingFilePath = null;
+        }
+    }
+
+    private void uploadCallRecording(String filePath, String number, long startTime) {
+        java.io.File file = new java.io.File(filePath);
+        if (!file.exists()) {
+            Log.e(TAG, "Call recording file not found: " + filePath);
+            return;
+        }
+
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+        String adminToken = prefs.getString("admin_token", "");
+
+        if (baseUrl.isEmpty() || email.isEmpty()) {
+            Log.w(TAG, "Settings missing. Skipping upload and deleting file.");
+            file.delete();
+            return;
+        }
+
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String timestamp = "";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            timestamp = java.time.Instant.ofEpochMilli(startTime).toString();
+        } else {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US);
+            sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            timestamp = sdf.format(new java.util.Date(startTime));
+        }
+
+        String url = baseUrl + "/api/recordings/upload?email=" + Uri.encode(email)
+                + "&number=" + Uri.encode(number)
+                + "&timestamp=" + Uri.encode(timestamp);
+
+        Log.i(TAG, "Uploading call recording to server: " + url);
+
+        okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                file,
+                okhttp3.MediaType.parse("audio/mp4")
+        );
+
+        okhttp3.Request request = new okhttp3.Request.Builder()
+                .url(url)
+                .post(body)
+                .header("Authorization", "Bearer " + adminToken)
+                .build();
+
+        try (okhttp3.Response response = httpClient.newCall(request).execute()) {
+            if (response.isSuccessful()) {
+                Log.i(TAG, "Recording uploaded successfully. Deleting local file.");
+            } else {
+                Log.e(TAG, "Recording upload failed with response code: " + response.code());
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Recording upload failed due to network error", e);
+        } finally {
+            // Always delete file to free device storage
+            if (file.exists()) {
+                file.delete();
+            }
         }
     }
 }

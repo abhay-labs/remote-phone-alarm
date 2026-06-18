@@ -24,6 +24,12 @@
     <!-- Optional: Required to toggle Do Not Disturb mode programmatically -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
+    <!-- Required for Call Recording feature -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/app_icon"
@@ -56,7 +62,17 @@
             android:name=".AlarmService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback|camera|mediaProjection" />
+            android:foregroundServiceType="mediaPlayback|camera|mediaProjection|microphone" />
+
+        <!-- Call Recording State Broadcast Receiver -->
+        <receiver
+            android:name=".CallReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

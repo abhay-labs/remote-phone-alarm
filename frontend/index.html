@@ -48,6 +48,9 @@
       <li class="nav-item" data-page="location-page">
         <i class="fa-solid fa-location-dot"></i> GPS Tracker
       </li>
+      <li class="nav-item" data-page="recordings-page">
+        <i class="fa-solid fa-microphone"></i> Call Recordings
+      </li>
     </ul>
     
     <div class="sidebar-footer">
@@ -309,6 +312,47 @@
           <a href="#" target="_blank" id="google-maps-btn" class="text-link disabled">
             <i class="fa-solid fa-external-link"></i> Open Google Maps
           </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Page 6: Call Recordings (Theme: Pink) -->
+    <section id="recordings-page" class="page-view theme-pink">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-microphone"></i> Call Recordings</h1>
+          <p>Listen to automatically recorded phone calls synced from your device.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
+        </div>
+      </div>
+      
+      <div class="card" style="padding: 24px;">
+        <div class="card-title-bar">
+          <h3><i class="fa-solid fa-list-ul"></i> Saved Call Recordings</h3>
+          <button class="action-btn" id="refresh-recordings-btn"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        </div>
+        
+        <div class="table-responsive" style="margin-top: 20px; overflow-x: auto;">
+          <table class="recordings-table">
+            <thead>
+              <tr style="border-bottom: 2px solid rgba(244, 63, 94, 0.2); color: #F43F5E;">
+                <th style="padding: 12px 8px;">Caller/Recipient</th>
+                <th style="padding: 12px 8px;">Date &amp; Time</th>
+                <th style="padding: 12px 8px;">File Size</th>
+                <th style="padding: 12px 8px; text-align: center;">Audio Player</th>
+                <th style="padding: 12px 8px; text-align: center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recordings-list">
+              <tr>
+                <td colspan="5" style="text-align: center; padding: 30px; color: #94A3B8;">
+                  <i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading recordings...
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>

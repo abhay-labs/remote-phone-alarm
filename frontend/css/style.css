@@ -1014,3 +1014,74 @@ body.theme-white .status-card-stat {
     padding: 20px;
   }
 }
+
+/* Call Recordings Styling */
+.recordings-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.recordings-table th, 
+.recordings-table td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.recordings-table th {
+  font-weight: 700;
+  color: var(--theme-accent);
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.recordings-table tbody tr {
+  transition: var(--transition-fast);
+}
+
+.recordings-table tbody tr:hover {
+  background: rgba(244, 63, 94, 0.04);
+}
+
+.recordings-table audio {
+  height: 32px;
+  border-radius: 16px;
+  outline: none;
+  max-width: 250px;
+}
+
+.recording-action-btn {
+  background: var(--theme-card-bg);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+}
+
+.recording-action-btn:hover {
+  background: var(--theme-accent);
+  color: #FFFFFF;
+  border-color: var(--theme-accent);
+  box-shadow: 0 4px 10px var(--theme-accent-glow);
+}
+
+.recording-action-btn.delete-btn {
+  color: #EF4444;
+}
+
+.recording-action-btn.delete-btn:hover {
+  background: #EF4444;
+  color: #FFFFFF;
+  border-color: #EF4444;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
+}

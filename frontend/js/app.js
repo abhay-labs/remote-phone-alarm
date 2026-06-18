@@ -757,6 +757,8 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (pageId === 'screen-page') {
         const tabScr = document.getElementById('tab-screen-btn');
         if (tabScr) tabScr.click();
+      } else if (pageId === 'recordings-page') {
+        loadRecordings();
       }
     });
   });
@@ -817,5 +819,141 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   };
+
+  // Setup Call Recordings refresh button listener
+  const refreshRecordingsBtn = document.getElementById('refresh-recordings-btn');
+  if (refreshRecordingsBtn) {
+    refreshRecordingsBtn.addEventListener('click', loadRecordings);
+  }
 });
+
+// Call Recordings API Logic
+async function loadRecordings() {
+  const recordingsList = document.getElementById('recordings-list');
+  if (!recordingsList) return;
+
+  recordingsList.innerHTML = `
+    <tr>
+      <td colspan="5" style="text-align: center; padding: 30px; color: #94A3B8;">
+        <i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading recordings...
+      </td>
+    </tr>
+  `;
+
+  if (!config.adminEmail) {
+    recordingsList.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 30px; color: #f43f5e;">
+          Please configure email settings first.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/recordings?email=${encodeURIComponent(config.adminEmail)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+
+    const json = await response.json();
+    if (json.success) {
+      renderRecordings(json.recordings);
+    } else {
+      throw new Error(json.error || 'Failed to fetch recordings');
+    }
+  } catch (error) {
+    console.error('Error loading recordings:', error);
+    recordingsList.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 30px; color: #f43f5e;">
+          Failed to load recordings: ${error.message}
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function renderRecordings(recordings) {
+  const recordingsList = document.getElementById('recordings-list');
+  if (!recordingsList) return;
+
+  if (!recordings || recordings.length === 0) {
+    recordingsList.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 30px; color: #94A3B8;">
+          No call recordings found yet.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  recordingsList.innerHTML = recordings.map(rec => {
+    const dateStr = formatTimestamp(rec.timestamp);
+    const sizeMB = (rec.size / (1024 * 1024)).toFixed(2);
+    const playUrl = config.serverUrl + rec.url;
+
+    return `
+      <tr style="border-bottom: 1px solid var(--theme-border);">
+        <td style="padding: 12px 8px; font-weight: 600; color: var(--theme-text);">${escapeHtml(rec.number)}</td>
+        <td style="padding: 12px 8px; color: var(--theme-text);">${dateStr}</td>
+        <td style="padding: 12px 8px; color: var(--theme-text);">${sizeMB} MB</td>
+        <td style="padding: 12px 8px; text-align: center;">
+          <audio src="${playUrl}" controls preload="none" style="max-height: 30px;"></audio>
+        </td>
+        <td style="padding: 12px 8px; text-align: center;">
+          <a href="${playUrl}" download="${rec.filename}" class="recording-action-btn" title="Download">
+            <i class="fa-solid fa-download"></i> Download
+          </a>
+          <button onclick="deleteRecording('${rec.id}')" class="recording-action-btn delete-btn" title="Delete">
+            <i class="fa-solid fa-trash"></i> Delete
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function deleteRecording(recordingId) {
+  if (!confirm('Are you sure you want to delete this call recording?')) {
+    return;
+  }
+
+  showFeedback('Deleting recording...', 'info');
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/recordings/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        recordingId: recordingId
+      })
+    });
+
+    const json = await response.json();
+    if (json.success) {
+      showFeedback('Recording deleted successfully!', 'success');
+      loadRecordings();
+    } else {
+      showFeedback(`Failed to delete recording: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Error: ${error.message}`, 'error');
+  }
+}
 
