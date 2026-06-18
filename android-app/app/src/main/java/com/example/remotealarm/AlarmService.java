@@ -1397,6 +1397,28 @@ public class AlarmService extends Service {
         return null;
     }
 
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        Log.i(TAG, "onTaskRemoved called. App task removed, scheduling service restart...");
+        Intent restartIntent = new Intent(getApplicationContext(), BootReceiver.class);
+        restartIntent.setAction("com.example.remotealarm.RESTART_SERVICE");
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+            getApplicationContext(), 
+            1, 
+            restartIntent, 
+            PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+        );
+        android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
+        if (alarmService != null) {
+            alarmService.set(
+                android.app.AlarmManager.RTC_WAKEUP, 
+                System.currentTimeMillis() + 1000, 
+                pendingIntent
+            );
+        }
+        super.onTaskRemoved(rootIntent);
+    }
+
 
 
     private String getLocalIpAddress() {

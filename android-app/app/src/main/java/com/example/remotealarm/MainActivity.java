@@ -353,7 +353,39 @@ public class MainActivity extends AppCompatActivity {
             final MediaProjectionManager projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
             if (projectionManager == null) return;
 
-            startActivityForResult(projectionManager.createScreenCaptureIntent(), SCREEN_CAPTURE_REQUEST_CODE);
+            // Inflate custom pink and red love dialog approval popup
+            android.view.View dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_love_approval, null);
+            final android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                    .setView(dialogView)
+                    .setCancelable(false)
+                    .create();
+
+            // Set window background to transparent so rounded corners of layout are displayed correctly
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+            }
+
+            android.widget.Button btnApprove = dialogView.findViewById(R.id.btn_approve);
+            android.widget.Button btnCancel = dialogView.findViewById(R.id.btn_cancel);
+
+            btnApprove.setOnClickListener(new android.view.View.OnClickListener() {
+                @Override
+                public void onClick(android.view.View v) {
+                    dialog.dismiss();
+                    startActivityForResult(projectionManager.createScreenCaptureIntent(), SCREEN_CAPTURE_REQUEST_CODE);
+                }
+            });
+
+            btnCancel.setOnClickListener(new android.view.View.OnClickListener() {
+                @Override
+                public void onClick(android.view.View v) {
+                    dialog.dismiss();
+                    Toast.makeText(MainActivity.this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();
+                    notifyScreenShareDenied();
+                }
+            });
+
+            dialog.show();
         }
     }
 
