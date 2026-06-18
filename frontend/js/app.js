@@ -37,6 +37,15 @@ const latVal = document.getElementById('lat-val');
 const lngVal = document.getElementById('lng-val');
 const googleMapsBtn = document.getElementById('google-maps-btn');
 
+// Camera DOM Elements
+const cameraIndicator = document.getElementById('camera-indicator');
+const cameraStatusText = document.getElementById('camera-status-text');
+const cameraPlaceholder = document.getElementById('camera-placeholder');
+const cameraVideoFrame = document.getElementById('camera-video-frame');
+const cameraLoader = document.getElementById('camera-loader');
+const toggleCameraBtn = document.getElementById('toggle-camera-btn');
+const switchCameraBtn = document.getElementById('switch-camera-btn');
+
 // Modal Elements
 const settingsModal = document.getElementById('settings-modal');
 const openSettingsBtn = document.getElementById('open-settings-btn');
@@ -83,6 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
   settingsForm.addEventListener('submit', saveSettings);
   ringBtn.addEventListener('click', triggerAlarm);
   stopBtn.addEventListener('click', stopAlarm);
+  toggleCameraBtn.addEventListener('click', toggleCamera);
+  switchCameraBtn.addEventListener('click', switchCamera);
 
   // Close modal when clicking outside content
   window.addEventListener('click', (e) => {
@@ -355,6 +366,55 @@ function updateUI(data) {
     googleMapsBtn.href = '#';
     googleMapsBtn.classList.add('disabled');
   }
+
+  // Update Camera UI
+  if (data.token) {
+    toggleCameraBtn.classList.remove('disabled');
+  } else {
+    toggleCameraBtn.classList.add('disabled');
+    switchCameraBtn.classList.add('disabled');
+  }
+
+  if (data.cameraActive) {
+    cameraIndicator.className = 'status-indicator online blinking';
+    cameraStatusText.textContent = 'ACTIVE';
+    cameraStatusText.className = 'state-active-label';
+    toggleCameraBtn.innerHTML = '<i class="fa-solid fa-video-slash"></i> Stop Feed';
+    toggleCameraBtn.classList.add('active');
+    switchCameraBtn.classList.remove('disabled');
+
+    const streamUrl = `${config.serverUrl}/api/camera/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`;
+    if (cameraVideoFrame.src !== streamUrl) {
+      cameraLoader.style.display = 'flex';
+      cameraPlaceholder.style.display = 'none';
+      cameraVideoFrame.style.display = 'none';
+      cameraVideoFrame.src = streamUrl;
+
+      // When image begins loading frames
+      cameraVideoFrame.onload = () => {
+        cameraLoader.style.display = 'none';
+        cameraVideoFrame.style.display = 'block';
+      };
+      cameraVideoFrame.onerror = () => {
+        cameraLoader.style.display = 'none';
+        cameraPlaceholder.style.display = 'flex';
+        cameraPlaceholder.querySelector('p').textContent = 'Failed to load camera stream.';
+      };
+    }
+  } else {
+    cameraIndicator.className = 'status-indicator offline';
+    cameraStatusText.textContent = 'OFFLINE';
+    cameraStatusText.className = 'state-inactive';
+    toggleCameraBtn.innerHTML = '<i class="fa-solid fa-video"></i> Start Feed';
+    toggleCameraBtn.classList.remove('active');
+    switchCameraBtn.classList.add('disabled');
+
+    cameraPlaceholder.style.display = 'flex';
+    cameraPlaceholder.querySelector('p').textContent = 'Stream not started. Click "Start Feed" below.';
+    cameraVideoFrame.style.display = 'none';
+    cameraLoader.style.display = 'none';
+    cameraVideoFrame.src = '';
+  }
 }
 
 // Handle Connection Errors
@@ -369,6 +429,16 @@ function setServerOffline(errMessage) {
   alarmStateText.textContent = 'UNKNOWN';
   alarmStateText.className = 'state-inactive';
   ringBtn.classList.remove('ringing');
+
+  toggleCameraBtn.classList.add('disabled');
+  switchCameraBtn.classList.add('disabled');
+  cameraIndicator.className = 'status-indicator offline';
+  cameraStatusText.textContent = 'UNKNOWN';
+  cameraStatusText.className = 'state-inactive';
+  cameraVideoFrame.src = '';
+  cameraVideoFrame.style.display = 'none';
+  cameraLoader.style.display = 'none';
+  cameraPlaceholder.style.display = 'flex';
 
   showFeedback(`Server error: ${errMessage}`, 'error');
 }
@@ -437,6 +507,83 @@ async function stopAlarm() {
       checkStatus(); // Force state check
     } else {
       showFeedback(`Failed: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Network error: ${error.message}`, 'error');
+  }
+}
+
+// Toggle Camera Stream
+async function toggleCamera() {
+  if (toggleCameraBtn.classList.contains('disabled')) return;
+
+  const isActive = toggleCameraBtn.classList.contains('active');
+  const action = isActive ? 'stop' : 'start';
+
+  showFeedback(isActive ? 'Stopping stream...' : 'Requesting stream start...', 'info');
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/camera/control`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        action: action
+      })
+    });
+
+    const json = await response.json();
+    if (json.success) {
+      showFeedback(isActive ? 'Camera stream stopped!' : 'Camera stream requested!', 'success');
+      checkStatus(); // Force poll
+    } else {
+      showFeedback(`Failed: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Network error: ${error.message}`, 'error');
+  }
+}
+
+// Switch between front and back camera
+async function switchCamera() {
+  if (switchCameraBtn.classList.contains('disabled')) return;
+
+  showFeedback('Switching camera...', 'info');
+
+  try {
+    // Check status first to see what current cameraSource is
+    const statusRes = await fetch(`${config.serverUrl}/api/status?email=${encodeURIComponent(config.adminEmail)}`);
+    const statusJson = await statusRes.json();
+    if (!statusJson.success) {
+      showFeedback('Failed to retrieve current camera source', 'error');
+      return;
+    }
+
+    const currentSource = statusJson.data.cameraSource || 'back';
+    const nextSource = currentSource === 'front' ? 'back' : 'front';
+
+    const response = await fetch(`${config.serverUrl}/api/camera/control`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        action: 'switch',
+        cameraSource: nextSource
+      })
+    });
+
+    const json = await response.json();
+    if (json.success) {
+      showFeedback(`Switched to ${nextSource} camera!`, 'success');
+      checkStatus(); // Force poll
+    } else {
+      showFeedback(`Failed to switch camera: ${json.error}`, 'error');
     }
   } catch (error) {
     showFeedback(`Network error: ${error.message}`, 'error');

@@ -108,6 +108,43 @@
           </div>
         </section>
 
+        <!-- Camera Card -->
+        <section class="card camera-card">
+          <div class="card-header">
+            <h2><i class="fa-solid fa-camera"></i> Live Video Feed</h2>
+            <div class="camera-status-badge">
+              <span class="status-indicator offline" id="camera-indicator"></span>
+              <span id="camera-status-text" class="state-inactive">OFFLINE</span>
+            </div>
+          </div>
+          
+          <div class="camera-stream-wrapper">
+            <div class="camera-stream-container">
+              <!-- Placeholder -->
+              <div class="camera-placeholder" id="camera-placeholder">
+                <i class="fa-solid fa-video-slash"></i>
+                <p>Stream not started. Click "Start Feed" below.</p>
+              </div>
+              <!-- Video Frame -->
+              <img id="camera-video-frame" src="" style="display: none;" alt="Camera Stream" />
+              <!-- Loader -->
+              <div class="camera-loader" id="camera-loader" style="display: none;">
+                <div class="spinner"></div>
+                <p>Initializing camera stream...</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="camera-controls">
+            <button id="toggle-camera-btn" class="submit-btn stream-control-btn disabled">
+              <i class="fa-solid fa-video"></i> Start Feed
+            </button>
+            <button id="switch-camera-btn" class="icon-btn" title="Switch Camera" disabled>
+              <i class="fa-solid fa-camera-rotate"></i>
+            </button>
+          </div>
+        </section>
+
         <!-- Location Card -->
         <section class="card map-card">
           <div class="card-header">

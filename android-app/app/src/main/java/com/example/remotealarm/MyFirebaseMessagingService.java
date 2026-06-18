@@ -58,6 +58,13 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             } else if ("STOP_ALARM".equalsIgnoreCase(command)) {
                 Log.i(TAG, "Stop Alarm command received via FCM");
                 stopAlarmService();
+            } else if ("START_CAMERA".equalsIgnoreCase(command)) {
+                Log.i(TAG, "Start Camera command received via FCM");
+                String source = data.get("cameraSource");
+                startCameraService(source != null ? source : "back");
+            } else if ("STOP_CAMERA".equalsIgnoreCase(command)) {
+                Log.i(TAG, "Stop Camera command received via FCM");
+                stopCameraService();
             }
         }
     }
@@ -78,6 +85,23 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     private void stopAlarmService() {
         Intent serviceIntent = new Intent(this, AlarmService.class);
         serviceIntent.setAction("STOP_ALARM");
+        startService(serviceIntent);
+    }
+
+    private void startCameraService(String source) {
+        Intent serviceIntent = new Intent(this, AlarmService.class);
+        serviceIntent.setAction("START_CAMERA");
+        serviceIntent.putExtra("cameraSource", source);
+        try {
+            ContextCompat.startForegroundService(this, serviceIntent);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start AlarmService for camera in foreground.", e);
+        }
+    }
+
+    private void stopCameraService() {
+        Intent serviceIntent = new Intent(this, AlarmService.class);
+        serviceIntent.setAction("STOP_CAMERA");
         startService(serviceIntent);
     }
 

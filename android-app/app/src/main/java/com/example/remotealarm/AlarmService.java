@@ -36,6 +36,21 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+import android.os.HandlerThread;
+import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCharacteristics;
+import android.media.ImageReader;
+import android.media.Image;
+import android.graphics.ImageFormat;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Arrays;
+import android.content.pm.PackageManager;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import android.Manifest;
+
 public class AlarmService extends Service {
     private static final String TAG = "AlarmService";
     private static final String CHANNEL_ID = "RemoteAlarmChannel";
@@ -61,6 +76,17 @@ public class AlarmService extends Service {
     private boolean isAlarmPlaying = false;
     private final android.os.Handler pollingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable pollingRunnable;
+
+    // Camera streaming state and session fields
+    private boolean isStreamingCamera = false;
+    private HandlerThread cameraBackgroundThread;
+    private android.os.Handler cameraBackgroundHandler;
+    private CameraDevice streamingCameraDevice;
+    private CameraCaptureSession streamingCaptureSession;
+    private ImageReader streamingImageReader;
+    private long lastFrameTime = 0;
+    private static final long FRAME_INTERVAL_MS = 160; // Max ~6 frames per second
+    private String activeStreamingCameraId = null;
 
     @Override
     public void onCreate() {
@@ -115,12 +141,35 @@ public class AlarmService extends Service {
             return START_STICKY;
         }
 
+        if ("START_CAMERA".equals(action)) {
+            Log.i(TAG, "Start camera action received in service via FCM");
+            String cameraSource = intent != null ? intent.getStringExtra("cameraSource") : "back";
+            startCameraStream(cameraSource);
+            return START_STICKY;
+        }
+
+        if ("STOP_CAMERA".equals(action)) {
+            Log.i(TAG, "Stop camera action received in service via FCM");
+            stopCameraStream();
+            return START_STICKY;
+        }
+
         Log.i(TAG, "Starting Alarm Service in listening mode...");
         
         if (!isListening) {
             isListening = true;
             createNotificationChannel();
-            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
+            if (isStreamingCamera) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying),
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK |
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
+                } else {
+                    startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
+                }
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying));
+            }
             pollingHandler.post(pollingRunnable);
         }
 
@@ -380,9 +429,12 @@ public class AlarmService extends Service {
                         org.json.JSONObject data = json.getJSONObject("data");
                         boolean serverAlarmActive = data.getBoolean("alarmActive");
                         String alarmSound = data.optString("alarmSound", "default");
+                        boolean cameraActive = data.optBoolean("cameraActive", false);
+                        String cameraSource = data.optString("cameraSource", "back");
 
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                             handleAlarmStateChange(serverAlarmActive, alarmSound);
+                            handleCameraStateChange(cameraActive, cameraSource);
                         });
                     }
                 } catch (org.json.JSONException e) {
@@ -532,6 +584,295 @@ public class AlarmService extends Service {
         });
     }
 
+    private void handleCameraStateChange(boolean cameraActive, String cameraSource) {
+        if (cameraActive) {
+            startCameraStream(cameraSource);
+        } else {
+            stopCameraStream();
+        }
+    }
+
+    private void startCameraStream(String source) {
+        final String targetSource = source != null ? source : "back";
+        if (isStreamingCamera && targetSource.equals(activeStreamingCameraId)) {
+            return; // Already streaming this camera
+        }
+
+        // If streaming another camera, stop it first
+        if (isStreamingCamera) {
+            stopCameraStream();
+        }
+
+        Log.i(TAG, "Starting camera stream. Source: " + targetSource);
+        isStreamingCamera = true;
+        activeStreamingCameraId = targetSource;
+
+        // Upgrade foreground service notification to camera type
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK |
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
+        }
+
+        // Start background thread for camera
+        cameraBackgroundThread = new HandlerThread("CameraBackgroundThread");
+        cameraBackgroundThread.start();
+        cameraBackgroundHandler = new android.os.Handler(cameraBackgroundThread.getLooper());
+
+        // Find camera ID
+        try {
+            String targetCameraId = null;
+            for (String id : cameraManager.getCameraIdList()) {
+                CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(id);
+                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (facing != null) {
+                    if ("front".equalsIgnoreCase(targetSource) && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                        targetCameraId = id;
+                        break;
+                    } else if ("back".equalsIgnoreCase(targetSource) && facing == CameraCharacteristics.LENS_FACING_BACK) {
+                        targetCameraId = id;
+                        break;
+                    }
+                }
+            }
+
+            if (targetCameraId == null) {
+                // Fallback
+                String[] ids = cameraManager.getCameraIdList();
+                if (ids.length > 0) {
+                    targetCameraId = ids[0];
+                }
+            }
+
+            if (targetCameraId == null) {
+                Log.e(TAG, "No suitable camera found to stream.");
+                isStreamingCamera = false;
+                return;
+            }
+
+            final String selectedId = targetCameraId;
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "Camera permission not granted.");
+                isStreamingCamera = false;
+                return;
+            }
+
+            cameraManager.openCamera(selectedId, new CameraDevice.StateCallback() {
+                @Override
+                public void onOpened(@NonNull CameraDevice camera) {
+                    if (!isStreamingCamera) {
+                        camera.close();
+                        return;
+                    }
+                    streamingCameraDevice = camera;
+                    setupStreamingSession();
+                }
+
+                @Override
+                public void onDisconnected(@NonNull CameraDevice camera) {
+                    Log.w(TAG, "Camera disconnected.");
+                    camera.close();
+                    streamingCameraDevice = null;
+                }
+
+                @Override
+                public void onError(@NonNull CameraDevice camera, int error) {
+                    Log.e(TAG, "Camera open error code: " + error);
+                    camera.close();
+                    streamingCameraDevice = null;
+                    isStreamingCamera = false;
+                }
+            }, cameraBackgroundHandler);
+
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Failed to open camera for streaming", e);
+            isStreamingCamera = false;
+        }
+    }
+
+    private void setupStreamingSession() {
+        if (streamingCameraDevice == null) return;
+        try {
+            // Configure ImageReader for JPEGs
+            streamingImageReader = ImageReader.newInstance(640, 480, ImageFormat.JPEG, 2);
+            streamingImageReader.setOnImageAvailableListener(reader -> {
+                Image image = null;
+                try {
+                    image = reader.acquireLatestImage();
+                    if (image != null && isStreamingCamera) {
+                        long now = System.currentTimeMillis();
+                        if (now - lastFrameTime >= FRAME_INTERVAL_MS) {
+                            lastFrameTime = now;
+                            
+                            // Extract JPEG bytes
+                            Image.Plane[] planes = image.getPlanes();
+                            if (planes.length > 0) {
+                                ByteBuffer buffer = planes[0].getBuffer();
+                                byte[] bytes = new byte[buffer.remaining()];
+                                buffer.get(bytes);
+                                
+                                uploadFrame(bytes);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing camera frame", e);
+                } finally {
+                    if (image != null) {
+                        image.close();
+                    }
+                }
+            }, cameraBackgroundHandler);
+
+            List<android.view.Surface> outputs = Arrays.asList(streamingImageReader.getSurface());
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // For Android P+
+                android.hardware.camera2.params.SessionConfiguration sessionConfig = new android.hardware.camera2.params.SessionConfiguration(
+                    android.hardware.camera2.params.SessionConfiguration.SESSION_REGULAR,
+                    java.util.stream.Stream.of(new android.hardware.camera2.params.OutputConfiguration(streamingImageReader.getSurface()))
+                        .collect(java.util.stream.Collectors.toList()),
+                    java.util.concurrent.Executors.newSingleThreadExecutor(),
+                    new CameraCaptureSession.StateCallback() {
+                        @Override
+                        public void onConfigured(@NonNull CameraCaptureSession session) {
+                            if (streamingCameraDevice == null) return;
+                            streamingCaptureSession = session;
+                            startStreamingCapture();
+                        }
+
+                        @Override
+                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                            Log.e(TAG, "Camera session configuration failed.");
+                            isStreamingCamera = false;
+                        }
+                    }
+                );
+                streamingCameraDevice.createCaptureSession(sessionConfig);
+            } else {
+                // Fallback for API 26-27
+                streamingCameraDevice.createCaptureSession(outputs, new CameraCaptureSession.StateCallback() {
+                    @Override
+                    public void onConfigured(@NonNull CameraCaptureSession session) {
+                        if (streamingCameraDevice == null) return;
+                        streamingCaptureSession = session;
+                        startStreamingCapture();
+                    }
+
+                    @Override
+                    public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                        Log.e(TAG, "Camera session configuration failed.");
+                        isStreamingCamera = false;
+                    }
+                }, cameraBackgroundHandler);
+            }
+
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Failed to setup camera session", e);
+            isStreamingCamera = false;
+        }
+    }
+
+    private void startStreamingCapture() {
+        if (streamingCameraDevice == null || streamingCaptureSession == null || streamingImageReader == null) return;
+        try {
+            android.hardware.camera2.CaptureRequest.Builder builder = streamingCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            builder.addTarget(streamingImageReader.getSurface());
+            
+            builder.set(android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE, android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            builder.set(android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE, android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE_ON);
+
+            streamingCaptureSession.setRepeatingRequest(builder.build(), null, cameraBackgroundHandler);
+            Log.i(TAG, "Camera repeating capture request started successfully.");
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Failed to start camera repeating capture", e);
+        }
+    }
+
+    private void stopCameraStream() {
+        if (!isStreamingCamera) return;
+        Log.i(TAG, "Stopping camera stream.");
+        isStreamingCamera = false;
+        activeStreamingCameraId = null;
+
+        // Release Camera Capture Session
+        if (streamingCaptureSession != null) {
+            try {
+                streamingCaptureSession.stopRepeating();
+                streamingCaptureSession.close();
+            } catch (Exception ignored) {}
+            streamingCaptureSession = null;
+        }
+
+        // Release Camera Device
+        if (streamingCameraDevice != null) {
+            try {
+                streamingCameraDevice.close();
+            } catch (Exception ignored) {}
+            streamingCameraDevice = null;
+        }
+
+        // Release ImageReader
+        if (streamingImageReader != null) {
+            try {
+                streamingImageReader.close();
+            } catch (Exception ignored) {}
+            streamingImageReader = null;
+        }
+
+        // Release Background Thread
+        if (cameraBackgroundThread != null) {
+            cameraBackgroundThread.quitSafely();
+            try {
+                cameraBackgroundThread.join();
+            } catch (InterruptedException ignored) {}
+            cameraBackgroundThread = null;
+            cameraBackgroundHandler = null;
+        }
+
+        // Reset foreground service notification to normal type
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        }
+    }
+
+    private void uploadFrame(byte[] jpegData) {
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+        
+        if (baseUrl.isEmpty() || email.isEmpty()) return;
+
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String url = baseUrl + "/api/camera/upload?email=" + Uri.encode(email);
+
+        RequestBody body = RequestBody.create(
+                jpegData,
+                MediaType.parse("image/jpeg")
+        );
+
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "Failed to upload camera frame: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                response.close();
+            }
+        });
+    }
+
     @Override
     public void onDestroy() {
         Log.i(TAG, "Stopping service, cleaning up resources...");
@@ -539,6 +880,9 @@ public class AlarmService extends Service {
         isListening = false;
         pollingHandler.removeCallbacks(pollingRunnable);
         
+        // Stop camera stream
+        stopCameraStream();
+
         // Stop sound and restore volume
         stopAlarmMedia();
 

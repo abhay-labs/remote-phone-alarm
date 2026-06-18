@@ -10,6 +10,9 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'Aryanayush@1';
 const DB_FILE = path.join(__dirname, '..', 'db.json');
 
+// Active MJPEG stream connections
+const cameraStreams = {};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -55,8 +58,11 @@ function getUserState(db, email) {
       alarmActive: false,
       location: null,
       lastUpdated: null,
-      deviceInfo: null
+      deviceInfo: null,
+      cameraSource: 'back'
     };
+  } else if (!db[normalizedEmail].cameraSource) {
+    db[normalizedEmail].cameraSource = 'back';
   }
   return db[normalizedEmail];
 }
@@ -128,11 +134,13 @@ app.get('/api/status', (req, res) => {
   const db = readDb();
   const normalizedEmail = email.toLowerCase().trim();
   const userState = getUserState(db, normalizedEmail);
+  const activeStreams = cameraStreams[normalizedEmail] || [];
 
   res.json({
     success: true,
     data: {
       ...userState,
+      cameraActive: activeStreams.length > 0,
       firebaseInitialized: isFirebaseInitialized
     }
   });
@@ -310,6 +318,143 @@ app.post('/api/upload-sound', authenticateAdmin, express.raw({ type: 'audio/*', 
     console.error('Failed to save uploaded audio file:', err);
     res.status(500).json({ success: false, error: 'Failed to save uploaded audio file' });
   }
+});
+
+// Helper to send camera command to device via FCM
+async function triggerCameraControl(email, active, source = 'back') {
+  const db = readDb();
+  const userState = db[email];
+  if (!userState || !userState.token) {
+    console.warn(`⚠️ No registered token for ${email}, cannot send camera command.`);
+    return;
+  }
+
+  console.log(`📱 Sending camera control to ${email}: active=${active}, source=${source}`);
+
+  if (!isFirebaseInitialized) {
+    return; // Mock mode
+  }
+
+  const message = {
+    data: {
+      command: active ? 'START_CAMERA' : 'STOP_CAMERA',
+      cameraSource: source,
+      timestamp: new Date().toISOString()
+    },
+    token: userState.token,
+    android: {
+      priority: 'high',
+      ttl: 0
+    }
+  };
+
+  try {
+    const response = await admin.messaging().send(message);
+    console.log(`✅ FCM camera command sent to ${email}:`, response);
+  } catch (error) {
+    console.error(`❌ Failed to send FCM camera command to ${email}:`, error.message);
+  }
+}
+
+// 7. GET Live Camera MJPEG Stream
+app.get('/api/camera/stream', (req, res) => {
+  const { email, token } = req.query;
+  if (!email) {
+    return res.status(400).send('Email parameter is required');
+  }
+
+  if (token !== ADMIN_TOKEN) {
+    return res.status(403).send('Forbidden: Invalid admin token');
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Set boundary headers for MJPEG stream
+  res.writeHead(200, {
+    'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',
+    'Cache-Control': 'no-cache',
+    'Connection': 'close',
+    'Pragma': 'no-cache'
+  });
+
+  if (!cameraStreams[normalizedEmail]) {
+    cameraStreams[normalizedEmail] = [];
+  }
+
+  cameraStreams[normalizedEmail].push(res);
+  console.log(`🎥 Web client connected to camera stream for ${normalizedEmail}. Total: ${cameraStreams[normalizedEmail].length}`);
+
+  // Auto-start camera on phone if this is the first connected web client
+  if (cameraStreams[normalizedEmail].length === 1) {
+    const db = readDb();
+    const userState = getUserState(db, normalizedEmail);
+    triggerCameraControl(normalizedEmail, true, userState.cameraSource || 'back');
+  }
+
+  req.on('close', () => {
+    cameraStreams[normalizedEmail] = cameraStreams[normalizedEmail].filter(c => c !== res);
+    console.log(`🎥 Web client disconnected from camera stream for ${normalizedEmail}. Remaining: ${cameraStreams[normalizedEmail].length}`);
+
+    // Auto-stop camera on phone if no clients are viewing
+    if (cameraStreams[normalizedEmail].length === 0) {
+      triggerCameraControl(normalizedEmail, false);
+    }
+  });
+});
+
+// 8. POST Camera Frame Upload (called by Android App)
+app.post('/api/camera/upload', express.raw({ type: 'image/jpeg', limit: '2mb' }), (req, res) => {
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const clients = cameraStreams[normalizedEmail];
+
+  if (clients && clients.length > 0) {
+    clients.forEach(clientRes => {
+      try {
+        clientRes.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${req.body.length}\r\n\r\n`);
+        clientRes.write(req.body);
+        clientRes.write('\r\n');
+      } catch (err) {
+        console.error('Error piping frame to client:', err.message);
+      }
+    });
+  }
+
+  res.json({ success: true });
+});
+
+// 9. POST Camera Control (start/stop/switch)
+app.post('/api/camera/control', authenticateAdmin, async (req, res) => {
+  const { email, action, cameraSource } = req.body;
+  if (!email || !action) {
+    return res.status(400).json({ success: false, error: 'Email and Action are required' });
+  }
+
+  const db = readDb();
+  const normalizedEmail = email.toLowerCase().trim();
+  const userState = getUserState(db, normalizedEmail);
+
+  if (cameraSource) {
+    userState.cameraSource = cameraSource;
+    writeDb(db);
+  }
+
+  if (action === 'start') {
+    triggerCameraControl(normalizedEmail, true, userState.cameraSource);
+    return res.json({ success: true, message: 'Camera stream start sent' });
+  } else if (action === 'stop') {
+    triggerCameraControl(normalizedEmail, false);
+    return res.json({ success: true, message: 'Camera stream stop sent' });
+  } else if (action === 'switch') {
+    triggerCameraControl(normalizedEmail, true, userState.cameraSource);
+    return res.json({ success: true, message: `Camera switched to ${userState.cameraSource}` });
+  }
+
+  res.status(400).json({ success: false, error: 'Invalid action' });
 });
 
 // Health check endpoint
