@@ -79,6 +79,7 @@ function getUserState(db, email) {
       cameraSource: 'back',
       cameraActive: false,
       screenShareActive: false,
+      screenShareRequested: false,
       recordings: []
     };
   } else {
@@ -90,6 +91,9 @@ function getUserState(db, email) {
     }
     if (db[normalizedEmail].screenShareActive === undefined) {
       db[normalizedEmail].screenShareActive = false;
+    }
+    if (db[normalizedEmail].screenShareRequested === undefined) {
+      db[normalizedEmail].screenShareRequested = false;
     }
     if (!db[normalizedEmail].recordings) {
       db[normalizedEmail].recordings = [];
@@ -616,19 +620,25 @@ app.post('/api/screen/control', authenticateAdmin, async (req, res) => {
   if (action === 'start') {
     if (source === 'device') {
       userState.screenShareActive = true;
+      userState.screenShareRequested = false;
       writeDb(db);
     } else {
+      userState.screenShareRequested = true;
+      writeDb(db);
       triggerScreenControl(normalizedEmail, true);
     }
     return res.json({ success: true, message: 'Screen share start sent' });
   } else if (action === 'stop') {
     userState.screenShareActive = false;
+    userState.screenShareRequested = false;
     writeDb(db);
     if (source !== 'device') {
       triggerScreenControl(normalizedEmail, false);
     }
     return res.json({ success: true, message: 'Screen share stop sent' });
   } else if (action === 'notify') {
+    userState.screenShareRequested = true;
+    writeDb(db);
     triggerScreenControl(normalizedEmail, true);
     return res.json({ success: true, message: 'Screen share notification sent' });
   }

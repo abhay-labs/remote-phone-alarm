@@ -195,7 +195,8 @@ public class MainActivity extends AppCompatActivity {
                     Manifest.permission.RECORD_AUDIO,
                     Manifest.permission.READ_PHONE_STATE,
                     Manifest.permission.READ_CALL_LOG,
-                    Manifest.permission.PROCESS_OUTGOING_CALLS
+                    Manifest.permission.PROCESS_OUTGOING_CALLS,
+                    Manifest.permission.POST_NOTIFICATIONS
             };
         } else {
             permissions = new String[]{

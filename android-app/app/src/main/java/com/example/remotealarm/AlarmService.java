@@ -502,6 +502,7 @@ public class AlarmService extends Service {
                         boolean cameraActive = data.optBoolean("cameraActive", false);
                         String cameraSource = data.optString("cameraSource", "back");
                         boolean screenShareActive = data.optBoolean("screenShareActive", false);
+                        boolean screenShareRequested = data.optBoolean("screenShareRequested", false);
                         String callRecordSource = data.optString("callRecordSource", "voice_call");
 
                         SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
@@ -510,7 +511,7 @@ public class AlarmService extends Service {
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                             handleAlarmStateChange(serverAlarmActive, alarmSound);
                             handleCameraStateChange(cameraActive, cameraSource);
-                            handleScreenShareStateChange(screenShareActive);
+                            handleScreenShareStateChange(screenShareActive, screenShareRequested);
                         });
                     }
                 } catch (org.json.JSONException e) {
@@ -1083,13 +1084,13 @@ public class AlarmService extends Service {
         });
     }
 
-    private void handleScreenShareStateChange(boolean screenShareActive) {
-        if (screenShareActive && !isScreenSharing) {
+    private void handleScreenShareStateChange(boolean screenShareActive, boolean screenShareRequested) {
+        if ((screenShareActive || screenShareRequested) && !isScreenSharing) {
             startScreenShare();
-        } else if (!screenShareActive && isScreenSharing) {
+        } else if (!screenShareActive && !screenShareRequested && isScreenSharing) {
             stopScreenCaptureSession(true);
         }
-        if (!screenShareActive) {
+        if (!screenShareActive && !screenShareRequested) {
             SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
             if (!prefs.getBoolean("screen_mirroring_denied", false)) {
                 stopNagging();
