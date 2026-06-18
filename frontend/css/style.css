@@ -1085,3 +1085,18 @@ body.theme-white .status-card-stat {
   border-color: #EF4444;
   box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
 }
+
+/* Live Hearing Styles */
+.theme-indigo {
+  --theme-accent: #6366F1;
+  --theme-accent-glow: rgba(99, 102, 241, 0.3);
+}
+
+@keyframes bounce-bar {
+  0% { transform: scaleY(0.4); }
+  100% { transform: scaleY(1.8); }
+}
+
+.bar-anim {
+  animation: bounce-bar 0.6s infinite ease-in-out alternate;
+}

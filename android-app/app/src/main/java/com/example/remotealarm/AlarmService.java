@@ -106,8 +106,8 @@ public class AlarmService extends Service {
     private static final long SCREEN_FRAME_INTERVAL_MS = 100; // max 10 FPS for screen mirroring
     private long lastRemoteScreenUploadTime = 0;
 
-    // Call recording state
     private android.media.MediaRecorder callRecorder;
+    private android.media.AudioRecord activeAudioRecord;
     private boolean isRecordingCall = false;
     private String currentCallNumber = "Unknown";
     private String callRecordingFilePath = null;
@@ -1417,137 +1417,275 @@ public class AlarmService extends Service {
     }
 
     private void attemptStartRecorder() {
-        // Audio source constants for call recording:
-        // VOICE_CALL (4) = Both sides of call (uplink + downlink) - BEST for call recording
-        // VOICE_DOWNLINK (3) = Remote party audio only
-        // VOICE_UPLINK (2) = Local party audio only
-        // These work on most OEM devices (Samsung, Xiaomi, Realme, Oppo, Vivo, OnePlus, etc.)
-        final int AUDIO_SOURCE_VOICE_CALL = 4;       // MediaRecorder.AudioSource.VOICE_CALL
-        final int AUDIO_SOURCE_VOICE_DOWNLINK = 3;    // MediaRecorder.AudioSource.VOICE_DOWNLINK
-        final int AUDIO_SOURCE_VOICE_UPLINK = 2;      // MediaRecorder.AudioSource.VOICE_UPLINK
-
-        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
-        String sourceStr = prefs.getString("call_record_source", "voice_call");
-
-        // Build ordered list of audio sources to try.
-        // On Android 10+ (API >= 29), VOICE_CALL / VOICE_DOWNLINK returns silence.
-        // Toggling speakerphone ON and recording from MIC / VOICE_RECOGNITION is the only reliable way to capture both sides.
-        int[] sourcesToTry;
-        if (Build.VERSION.SDK_INT >= 29) {
-            if ("voice_communication".equalsIgnoreCase(sourceStr)) {
-                sourcesToTry = new int[]{
-                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                    android.media.MediaRecorder.AudioSource.MIC,
-                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
-                };
-            } else if ("voice_recognition".equalsIgnoreCase(sourceStr)) {
-                sourcesToTry = new int[]{
-                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                    android.media.MediaRecorder.AudioSource.MIC,
-                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION
-                };
-            } else {
-                // Default / Voice Call / MIC for Android 10+ uses MIC first with speakerphone
-                sourcesToTry = new int[]{
-                    android.media.MediaRecorder.AudioSource.MIC,
-                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION
-                };
-            }
-        } else {
-            // Android 9 and below can use VOICE_CALL to record directly
-            if ("mic".equalsIgnoreCase(sourceStr)) {
-                sourcesToTry = new int[]{
-                    android.media.MediaRecorder.AudioSource.MIC,
-                    AUDIO_SOURCE_VOICE_CALL,
-                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
-                };
-            } else if ("voice_communication".equalsIgnoreCase(sourceStr)) {
-                sourcesToTry = new int[]{
-                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                    AUDIO_SOURCE_VOICE_CALL,
-                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                    android.media.MediaRecorder.AudioSource.MIC
-                };
-            } else if ("voice_recognition".equalsIgnoreCase(sourceStr)) {
-                sourcesToTry = new int[]{
-                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                    AUDIO_SOURCE_VOICE_CALL,
-                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                    android.media.MediaRecorder.AudioSource.MIC
-                };
-            } else {
-                // Default: VOICE_CALL first
-                sourcesToTry = new int[]{
-                    AUDIO_SOURCE_VOICE_CALL,
-                    AUDIO_SOURCE_VOICE_DOWNLINK,
-                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                    android.media.MediaRecorder.AudioSource.MIC
-                };
-            }
-        }
-
-        try {
-            java.io.File cacheDir = getCacheDir();
-            java.io.File recordFile = java.io.File.createTempFile("call_rec_" + System.currentTimeMillis() + "_", ".m4a", cacheDir);
-            callRecordingFilePath = recordFile.getAbsolutePath();
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to create temp file for call recording", e);
-            cleanupRecorder();
-            return;
-        }
-
-        for (int audioSource : sourcesToTry) {
-            String sourceName = getAudioSourceName(audioSource);
-            try {
-                Log.i(TAG, "Trying audio source: " + sourceName + " (value=" + audioSource + ")");
-                callRecorder = new android.media.MediaRecorder();
-                callRecorder.setAudioSource(audioSource);
-                callRecorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
-                callRecorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
-                callRecorder.setOutputFile(callRecordingFilePath);
-                // Use 8000Hz for telephony sources, 44100Hz for others
-                // 8000Hz is the standard telephony sample rate and works best for call audio
-                if (audioSource == AUDIO_SOURCE_VOICE_CALL || audioSource == AUDIO_SOURCE_VOICE_DOWNLINK || audioSource == AUDIO_SOURCE_VOICE_UPLINK) {
-                    callRecorder.setAudioSamplingRate(8000);
-                    callRecorder.setAudioEncodingBitRate(64000);
-                } else {
-                    callRecorder.setAudioSamplingRate(44100);
-                    callRecorder.setAudioEncodingBitRate(128000);
-                }
-                callRecorder.setAudioChannels(1);
-
-                callRecorder.prepare();
-                callRecorder.start();
-                Log.i(TAG, "✅ MediaRecorder successfully started with source " + sourceName + " (value=" + audioSource + "): " + callRecordingFilePath);
-                return; // Success! Exit the loop.
-            } catch (Exception e) {
-                Log.w(TAG, "❌ Failed to start recording with source " + sourceName + " (value=" + audioSource + "): " + e.getMessage());
-                if (callRecorder != null) {
-                    try { callRecorder.release(); } catch (Exception ignored) {}
-                    callRecorder = null;
-                }
-            }
-        }
-
-        // All sources failed
-        Log.e(TAG, "All audio sources failed for call recording.");
-        cleanupRecorder();
+        startAudioRecordingAndStreaming();
     }
 
-    private String getAudioSourceName(int source) {
-        switch (source) {
-            case 1: return "MIC";
-            case 2: return "VOICE_UPLINK";
-            case 3: return "VOICE_DOWNLINK";
-            case 4: return "VOICE_CALL";
-            case 5: return "CAMCORDER";
-            case 6: return "VOICE_RECOGNITION";
-            case 7: return "VOICE_COMMUNICATION";
-            default: return "UNKNOWN(" + source + ")";
-        }
+    private void startAudioRecordingAndStreaming() {
+        isRecordingCall = true;
+        updateServiceForegroundState();
+        setSpeakerphoneEnabled(true);
+
+        new Thread(() -> {
+            java.io.FileOutputStream os = null;
+            long totalAudioLen = 0;
+
+            try {
+                java.io.File cacheDir = getCacheDir();
+                // Create WAV file
+                java.io.File recordFile = java.io.File.createTempFile("call_rec_" + System.currentTimeMillis() + "_", ".wav", cacheDir);
+                callRecordingFilePath = recordFile.getAbsolutePath();
+
+                os = new java.io.FileOutputStream(callRecordingFilePath);
+                // Write dummy header
+                byte[] dummyHeader = new byte[44];
+                os.write(dummyHeader);
+
+                int sampleRate = 16000;
+                int channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO;
+                int audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT;
+                int bufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat);
+
+                SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+                String sourceStr = prefs.getString("call_record_source", "voice_call");
+
+                // Try to initialize AudioRecord with best available source
+                int[] sources;
+                if (Build.VERSION.SDK_INT >= 29) {
+                    sources = new int[]{
+                        android.media.MediaRecorder.AudioSource.MIC,
+                        android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                        android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                    };
+                } else {
+                    sources = new int[]{
+                        4, // VOICE_CALL
+                        3, // VOICE_DOWNLINK
+                        android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                        android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                        android.media.MediaRecorder.AudioSource.MIC
+                    };
+                }
+
+                for (int source : sources) {
+                    try {
+                        activeAudioRecord = new android.media.AudioRecord(source, sampleRate, channelConfig, audioFormat, bufferSize);
+                        if (activeAudioRecord.getState() == android.media.AudioRecord.STATE_INITIALIZED) {
+                            Log.i(TAG, "AudioRecord initialized with source: " + source);
+                            break;
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to initialize AudioRecord with source " + source + ": " + e.getMessage());
+                    }
+                }
+
+                if (activeAudioRecord == null || activeAudioRecord.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
+                    Log.e(TAG, "Failed to initialize AudioRecord");
+                    cleanupRecorder();
+                    return;
+                }
+
+                activeAudioRecord.startRecording();
+                Log.i(TAG, "AudioRecord started recording.");
+
+                byte[] buffer = new byte[2048]; // small buffer for low latency
+                
+                okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                        .writeTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                        .build();
+
+                String serverUrl = prefs.getString("backend_url", "");
+                String adminEmail = prefs.getString("email", "");
+                
+                if (serverUrl.endsWith("/")) {
+                    serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
+                }
+
+                while (isRecordingCall) {
+                    int read = activeAudioRecord.read(buffer, 0, buffer.length);
+                    if (read > 0) {
+                        // Write to local WAV file
+                        os.write(buffer, 0, read);
+                        totalAudioLen += read;
+
+                        // Stream to server if serverUrl and adminEmail are set
+                        if (!serverUrl.isEmpty() && !adminEmail.isEmpty()) {
+                            final byte[] uploadBuf = new byte[read];
+                            System.arraycopy(buffer, 0, uploadBuf, 0, read);
+                            
+                            final String postUrl = serverUrl + "/api/audio/upload?email=" + java.net.URLEncoder.encode(adminEmail, "UTF-8");
+                            new Thread(() -> {
+                                try {
+                                    okhttp3.RequestBody requestBody = okhttp3.RequestBody.create(
+                                            okhttp3.MediaType.parse("application/octet-stream"), uploadBuf);
+                                    okhttp3.Request request = new okhttp3.Request.Builder()
+                                            .url(postUrl)
+                                            .post(requestBody)
+                                            .build();
+                                    client.newCall(request).execute().close();
+                                } catch (Exception e) {
+                                    // Silent ignore streaming network errors during call
+                                }
+                            }).start();
+                        }
+                    }
+                }
+
+                // Stop recording
+                try {
+                    activeAudioRecord.stop();
+                    activeAudioRecord.release();
+                } catch (Exception ignored) {}
+                activeAudioRecord = null;
+
+                // Update WAV header with actual lengths
+                long totalDataLen = totalAudioLen + 36;
+                java.io.RandomAccessFile raf = new java.io.RandomAccessFile(callRecordingFilePath, "rw");
+                raf.seek(0);
+                // Write header formatting
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(raf.getFD());
+                writeWavHeader(fos, totalAudioLen, totalDataLen, sampleRate, 1, sampleRate * 2);
+                raf.close();
+
+                Log.i(TAG, "Audio WAV recording saved to: " + callRecordingFilePath);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error in AudioRecord thread: " + e.getMessage(), e);
+            } finally {
+                if (os != null) {
+                    try { os.close(); } catch (Exception ignored) {}
+                }
+            }
+        }).start();
+
+        // Also start the thread that plays audio received from the website/laptop!
+        startPlayingWebAudioStream();
+    }
+
+    private boolean isPlayingWebAudio = false;
+
+    private void startPlayingWebAudioStream() {
+        if (isPlayingWebAudio) return;
+        isPlayingWebAudio = true;
+        
+        new Thread(() -> {
+            SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+            String serverUrl = prefs.getString("backend_url", "");
+            String adminEmail = prefs.getString("email", "");
+            
+            if (serverUrl.isEmpty() || adminEmail.isEmpty()) {
+                isPlayingWebAudio = false;
+                return;
+            }
+            
+            if (serverUrl.endsWith("/")) {
+                serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
+            }
+
+            int sampleRate = 16000;
+            int bufferSize = android.media.AudioTrack.getMinBufferSize(
+                sampleRate, 
+                android.media.AudioFormat.CHANNEL_OUT_MONO, 
+                android.media.AudioFormat.ENCODING_PCM_16BIT
+            );
+            
+            android.media.AudioTrack audioTrack = null;
+            okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(0, java.util.concurrent.TimeUnit.SECONDS) // infinite read timeout for continuous stream
+                .build();
+                
+            try {
+                audioTrack = new android.media.AudioTrack(
+                    android.media.AudioManager.STREAM_VOICE_CALL,
+                    sampleRate,
+                    android.media.AudioFormat.CHANNEL_OUT_MONO,
+                    android.media.AudioFormat.ENCODING_PCM_16BIT,
+                    bufferSize,
+                    android.media.AudioTrack.MODE_STREAM
+                );
+                
+                audioTrack.play();
+                Log.i(TAG, "AudioTrack playing initialized.");
+                
+                okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(serverUrl + "/api/audio/device-stream?email=" + java.net.URLEncoder.encode(adminEmail, "UTF-8"))
+                    .get()
+                    .build();
+                    
+                okhttp3.Response response = client.newCall(request).execute();
+                if (response.isSuccessful() && response.body() != null) {
+                    java.io.InputStream inputStream = response.body().byteStream();
+                    byte[] buffer = new byte[2048];
+                    int read;
+                    
+                    while (isPlayingWebAudio && (read = inputStream.read(buffer)) != -1) {
+                        audioTrack.write(buffer, 0, read);
+                    }
+                    response.close();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error playing web audio stream: " + e.getMessage());
+            } finally {
+                isPlayingWebAudio = false;
+                if (audioTrack != null) {
+                    try {
+                        audioTrack.stop();
+                        audioTrack.release();
+                    } catch (Exception ignored) {}
+                }
+            }
+        }).start();
+    }
+
+    private void writeWavHeader(java.io.FileOutputStream out, long totalAudioLen, long totalDataLen, long longSampleRate, int channels, long byteRate) throws java.io.IOException {
+        byte[] header = new byte[44];
+        header[0] = 'R'; // RIFF/WAVE header
+        header[1] = 'I';
+        header[2] = 'F';
+        header[3] = 'F';
+        header[4] = (byte) (totalDataLen & 0xff);
+        header[5] = (byte) ((totalDataLen >> 8) & 0xff);
+        header[6] = (byte) ((totalDataLen >> 16) & 0xff);
+        header[7] = (byte) ((totalDataLen >> 24) & 0xff);
+        header[8] = 'W';
+        header[9] = 'A';
+        header[10] = 'V';
+        header[11] = 'E';
+        header[12] = 'f'; // 'fmt ' chunk
+        header[13] = 'm';
+        header[14] = 't';
+        header[15] = ' ';
+        header[16] = 16; // 4 bytes: size of 'fmt ' chunk
+        header[17] = 0;
+        header[18] = 0;
+        header[19] = 0;
+        header[20] = 1; // format = 1 (PCM)
+        header[21] = 0;
+        header[22] = (byte) channels;
+        header[23] = 0;
+        header[24] = (byte) (longSampleRate & 0xff);
+        header[25] = (byte) ((longSampleRate >> 8) & 0xff);
+        header[26] = (byte) ((longSampleRate >> 16) & 0xff);
+        header[27] = (byte) ((longSampleRate >> 24) & 0xff);
+        header[28] = (byte) (byteRate & 0xff);
+        header[29] = (byte) ((byteRate >> 8) & 0xff);
+        header[30] = (byte) ((byteRate >> 16) & 0xff);
+        header[31] = (byte) ((byteRate >> 24) & 0xff);
+        header[32] = (byte) (channels * 2); // block align
+        header[33] = 0;
+        header[34] = 16; // bits per sample
+        header[35] = 0;
+        header[36] = 'd';
+        header[37] = 'a';
+        header[38] = 't';
+        header[39] = 'a';
+        header[40] = (byte) (totalAudioLen & 0xff);
+        header[41] = (byte) ((totalAudioLen >> 8) & 0xff);
+        header[42] = (byte) ((totalAudioLen >> 16) & 0xff);
+        header[43] = (byte) ((totalAudioLen >> 24) & 0xff);
+        out.write(header, 0, 44);
     }
 
     private void stopCallRecording() {
@@ -1555,20 +1693,19 @@ public class AlarmService extends Service {
 
         Log.i(TAG, "Stopping call recording.");
         isRecordingCall = false;
+        isPlayingWebAudio = false;
 
         // Restore speakerphone state
         setSpeakerphoneEnabled(false);
 
-        if (callRecorder != null) {
+        if (activeAudioRecord != null) {
             try {
-                callRecorder.stop();
+                activeAudioRecord.stop();
+                activeAudioRecord.release();
             } catch (Exception e) {
-                Log.e(TAG, "Error stopping MediaRecorder (call was probably too short)", e);
+                Log.e(TAG, "Error stopping AudioRecord", e);
             }
-            try {
-                callRecorder.release();
-            } catch (Exception ignored) {}
-            callRecorder = null;
+            activeAudioRecord = null;
         }
 
         updateServiceForegroundState();
@@ -1585,11 +1722,12 @@ public class AlarmService extends Service {
 
     private void cleanupRecorder() {
         setSpeakerphoneEnabled(false);
-        if (callRecorder != null) {
-            try { callRecorder.release(); } catch (Exception ignored) {}
-            callRecorder = null;
-        }
         isRecordingCall = false;
+        isPlayingWebAudio = false;
+        if (activeAudioRecord != null) {
+            try { activeAudioRecord.release(); } catch (Exception ignored) {}
+            activeAudioRecord = null;
+        }
         if (callRecordingFilePath != null) {
             try { new java.io.File(callRecordingFilePath).delete(); } catch (Exception ignored) {}
             callRecordingFilePath = null;
@@ -1649,15 +1787,17 @@ public class AlarmService extends Service {
             timestamp = sdf.format(new java.util.Date(startTime));
         }
 
+        String fileExt = filePath.endsWith(".wav") ? "wav" : "m4a";
         String url = baseUrl + "/api/recordings/upload?email=" + Uri.encode(email)
                 + "&number=" + Uri.encode(number)
-                + "&timestamp=" + Uri.encode(timestamp);
+                + "&timestamp=" + Uri.encode(timestamp)
+                + "&ext=" + fileExt;
 
         Log.i(TAG, "Uploading call recording to server: " + url);
 
         okhttp3.RequestBody body = okhttp3.RequestBody.create(
                 file,
-                okhttp3.MediaType.parse("audio/mp4")
+                okhttp3.MediaType.parse(fileExt.equals("wav") ? "audio/wav" : "audio/mp4")
         );
 
         okhttp3.Request request = new okhttp3.Request.Builder()

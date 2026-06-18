@@ -51,6 +51,9 @@
       <li class="nav-item" data-page="recordings-page">
         <i class="fa-solid fa-microphone"></i> Call Recordings
       </li>
+      <li class="nav-item" data-page="hearing-page">
+        <i class="fa-solid fa-volume-high"></i> Live Hearing
+      </li>
     </ul>
     
     <div class="sidebar-footer">
@@ -353,6 +356,59 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Page 7: Live Hearing & Speaking (Theme: Indigo) -->
+    <section id="hearing-page" class="page-view theme-indigo">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-volume-high"></i> Live Hearing Bridge</h1>
+          <p>Listen to live phone calls and speak directly back to the device speaker.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
+        </div>
+      </div>
+      
+      <div class="card-grid">
+        <!-- Panel 1: Hear Phone -->
+        <div class="card" style="padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px;">
+          <div class="card-icon" style="font-size: 3rem; color: #6366F1; margin-bottom: 20px;">
+            <i class="fa-solid fa-headphones"></i>
+          </div>
+          <h3 style="margin-bottom: 10px;">Listen Live</h3>
+          <p style="color: #64748B; text-align: center; font-size: 0.9rem; margin-bottom: 20px; max-width: 300px;">
+            Hear the phone's microphone and active call conversation in real-time.
+          </p>
+          <button id="start-hear-btn" class="action-btn text-indigo" style="padding: 12px 24px; font-weight: 600; border-radius: 8px; border: 2px solid #6366F1; background: transparent; cursor: pointer; transition: all 0.2s;">
+            <i class="fa-solid fa-play" style="margin-right: 8px;"></i> Start Listening
+          </button>
+          <div id="hear-visualizer" style="display: none; align-items: center; gap: 4px; margin-top: 20px; height: 30px;">
+            <div class="bar bar-anim" style="width: 4px; height: 15px; background: #6366F1; border-radius: 2px;"></div>
+            <div class="bar bar-anim" style="width: 4px; height: 25px; background: #6366F1; border-radius: 2px; animation-delay: 0.15s;"></div>
+            <div class="bar bar-anim" style="width: 4px; height: 10px; background: #6366F1; border-radius: 2px; animation-delay: 0.3s;"></div>
+            <div class="bar bar-anim" style="width: 4px; height: 30px; background: #6366F1; border-radius: 2px; animation-delay: 0.45s;"></div>
+            <div class="bar bar-anim" style="width: 4px; height: 18px; background: #6366F1; border-radius: 2px; animation-delay: 0.6s;"></div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Talk to Phone -->
+        <div class="card" style="padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px;">
+          <div class="card-icon" style="font-size: 3rem; color: #EC4899; margin-bottom: 20px;">
+            <i class="fa-solid fa-microphone-lines"></i>
+          </div>
+          <h3 style="margin-bottom: 10px;">Speak Live</h3>
+          <p style="color: #64748B; text-align: center; font-size: 0.9rem; margin-bottom: 20px; max-width: 300px;">
+            Stream your laptop's microphone audio directly to the phone's speaker.
+          </p>
+          <button id="start-talk-btn" class="action-btn text-pink" style="padding: 12px 24px; font-weight: 600; border-radius: 8px; border: 2px solid #EC4899; background: transparent; cursor: pointer; transition: all 0.2s;">
+            <i class="fa-solid fa-microphone" style="margin-right: 8px;"></i> Start Talking
+          </button>
+          <div id="talk-indicator" style="display: none; color: #EC4899; font-weight: 600; margin-top: 20px; animation: pulse 1s infinite;">
+            <i class="fa-solid fa-circle" style="font-size: 0.6rem; margin-right: 6px; vertical-align: middle;"></i> Microphone Active
+          </div>
         </div>
       </div>
     </section>
