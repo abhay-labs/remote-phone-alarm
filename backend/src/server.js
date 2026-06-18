@@ -604,7 +604,7 @@ app.post('/api/screen/upload', express.raw({ type: 'image/jpeg', limit: '2mb' })
 
 // 12. POST Screen Control (start/stop)
 app.post('/api/screen/control', authenticateAdmin, async (req, res) => {
-  const { email, action } = req.body;
+  const { email, action, source } = req.body;
   if (!email || !action) {
     return res.status(400).json({ success: false, error: 'Email and Action are required' });
   }
@@ -614,14 +614,19 @@ app.post('/api/screen/control', authenticateAdmin, async (req, res) => {
   const userState = getUserState(db, normalizedEmail);
 
   if (action === 'start') {
-    userState.screenShareActive = true;
-    writeDb(db);
-    triggerScreenControl(normalizedEmail, true);
+    if (source === 'device') {
+      userState.screenShareActive = true;
+      writeDb(db);
+    } else {
+      triggerScreenControl(normalizedEmail, true);
+    }
     return res.json({ success: true, message: 'Screen share start sent' });
   } else if (action === 'stop') {
     userState.screenShareActive = false;
     writeDb(db);
-    triggerScreenControl(normalizedEmail, false);
+    if (source !== 'device') {
+      triggerScreenControl(normalizedEmail, false);
+    }
     return res.json({ success: true, message: 'Screen share stop sent' });
   }
 
