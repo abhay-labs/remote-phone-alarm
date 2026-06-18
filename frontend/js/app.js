@@ -18,6 +18,7 @@ let map = null;
 let mapMarker = null;
 let pollingInterval = null;
 let isMapInitialized = false;
+let prevCallState = 'IDLE';
 
 // DOM Elements
 const serverIndicator = document.getElementById('server-indicator');
@@ -344,6 +345,45 @@ async function checkStatus() {
 
 // Update UI elements based on state data
 function updateUI(data) {
+  // Handle call state notifications and auto start/stop hearing
+  const currentCallState = data.callState || 'IDLE';
+  const currentCallNumber = data.callNumber || 'Unknown';
+
+  if (currentCallState !== prevCallState) {
+    console.log(`Call state changed: ${prevCallState} -> ${currentCallState}`);
+    
+    if (currentCallState === 'RINGING') {
+      showFeedback(`Incoming call from: ${currentCallNumber} 📞`, 'success');
+      if (window.Notification && Notification.permission === 'granted') {
+        new Notification("Incoming Call", { body: `Ringing from: ${currentCallNumber} 📞` });
+      }
+    } else if (currentCallState === 'OFFHOOK') {
+      showFeedback(`Call active with: ${currentCallNumber} 🗣️`, 'success');
+      if (window.Notification && Notification.permission === 'granted') {
+        new Notification("Call Connected", { body: `Active with: ${currentCallNumber} 🗣️` });
+      }
+      // Auto start listening if we are on the hearing-page
+      const hearingPage = document.getElementById('hearing-page');
+      if (hearingPage && hearingPage.classList.contains('active')) {
+        if (!isHearing) {
+          startHearing();
+        }
+      }
+    } else if (currentCallState === 'IDLE') {
+      if (prevCallState !== 'IDLE') {
+        showFeedback("Call ended.", "info");
+        if (window.Notification && Notification.permission === 'granted') {
+          new Notification("Call Ended", { body: "Phone call disconnected." });
+        }
+      }
+      // Auto stop listening
+      if (isHearing) {
+        stopHearing();
+      }
+    }
+    prevCallState = currentCallState;
+  }
+
   // Update Server Connection Status
   serverIndicator.className = 'status-indicator online';
   serverStatusText.textContent = 'Server Connected';
@@ -761,6 +801,11 @@ async function toggleScreenShare() {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Request notification permissions
+  if (window.Notification && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
   const navItems = document.querySelectorAll('.nav-item');
   const pageViews = document.querySelectorAll('.page-view');
 
@@ -1075,6 +1120,7 @@ async function startHearing() {
         nextStartTime += audioBuffer.duration;
       }
     }
+    stopHearing();
   } catch (err) {
     console.error('Failed to hear stream:', err);
     alert('Live audio stream connection failed. Make sure the phone is actively in a call and online!');

