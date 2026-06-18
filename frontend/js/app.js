@@ -936,7 +936,10 @@ function renderRecordings(recordings) {
         <td style="padding: 12px 8px; color: var(--theme-text);">${dateStr}</td>
         <td style="padding: 12px 8px; color: var(--theme-text);">${sizeMB} MB</td>
         <td style="padding: 12px 8px; text-align: center;">
-          <audio src="${playUrl}" controls preload="none" style="max-height: 30px;"></audio>
+          <audio controls preload="metadata" style="max-height: 30px; min-width: 200px;">
+            <source src="${playUrl}" type="audio/mp4">
+            Your browser does not support the audio element.
+          </audio>
         </td>
         <td style="padding: 12px 8px; text-align: center;">
           <a href="${playUrl}" download="${rec.filename}" class="recording-action-btn" title="Download">

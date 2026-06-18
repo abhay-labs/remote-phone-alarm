@@ -1395,43 +1395,96 @@ public class AlarmService extends Service {
         currentCallNumber = (number != null && !number.isEmpty()) ? number : "Unknown";
         callStartTime = System.currentTimeMillis();
 
-        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
-        String sourceStr = prefs.getString("call_record_source", "voice_recognition");
-        int audioSource = android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION; // Default (highly recommended for Android 10+)
-        
-        if ("mic".equalsIgnoreCase(sourceStr)) {
-            audioSource = android.media.MediaRecorder.AudioSource.MIC;
-            Log.d(TAG, "Using MIC audio source for call recording");
-        } else if ("voice_communication".equalsIgnoreCase(sourceStr)) {
-            audioSource = android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION;
-            Log.d(TAG, "Using VOICE_COMMUNICATION audio source for call recording");
-        } else {
-            Log.d(TAG, "Using VOICE_RECOGNITION audio source for call recording");
-        }
-
         // 1. Elevate service state first to secure the microphone while-in-use permission context
         isRecordingCall = true;
         updateServiceForegroundState();
 
+        // 2. Delay recording start by 500ms to allow the phone call audio path to fully initialize.
+        //    Without this delay, the recorder might start before the audio routing is established,
+        //    resulting in silent or corrupt recordings.
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            if (!isRecordingCall) {
+                Log.w(TAG, "Call ended before recording could start.");
+                return;
+            }
+            attemptStartRecorder();
+        }, 500);
+    }
+
+    private void attemptStartRecorder() {
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String sourceStr = prefs.getString("call_record_source", "voice_communication");
+
+        // Build ordered list of audio sources to try. VOICE_COMMUNICATION captures both sides on most devices.
+        int[] sourcesToTry;
+        if ("mic".equalsIgnoreCase(sourceStr)) {
+            sourcesToTry = new int[]{
+                android.media.MediaRecorder.AudioSource.MIC,
+                android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
+            };
+        } else if ("voice_recognition".equalsIgnoreCase(sourceStr)) {
+            sourcesToTry = new int[]{
+                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                android.media.MediaRecorder.AudioSource.MIC
+            };
+        } else {
+            // Default: voice_communication (best for capturing both sides of a call)
+            sourcesToTry = new int[]{
+                android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                android.media.MediaRecorder.AudioSource.MIC
+            };
+        }
+
         try {
             java.io.File cacheDir = getCacheDir();
-            java.io.File recordFile = java.io.File.createTempFile("call_rec_" + System.currentTimeMillis() + "_", ".mp4", cacheDir);
+            java.io.File recordFile = java.io.File.createTempFile("call_rec_" + System.currentTimeMillis() + "_", ".m4a", cacheDir);
             callRecordingFilePath = recordFile.getAbsolutePath();
-
-            callRecorder = new android.media.MediaRecorder();
-            callRecorder.setAudioSource(audioSource);
-            callRecorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
-            callRecorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
-            callRecorder.setOutputFile(callRecordingFilePath);
-            callRecorder.setAudioSamplingRate(44100);
-            callRecorder.setAudioEncodingBitRate(96000);
-
-            callRecorder.prepare();
-            callRecorder.start();
-            Log.i(TAG, "MediaRecorder successfully started: " + callRecordingFilePath);
         } catch (Exception e) {
-            Log.e(TAG, "Failed to start call recording", e);
+            Log.e(TAG, "Failed to create temp file for call recording", e);
             cleanupRecorder();
+            return;
+        }
+
+        for (int audioSource : sourcesToTry) {
+            String sourceName = getAudioSourceName(audioSource);
+            try {
+                Log.i(TAG, "Trying audio source: " + sourceName);
+                callRecorder = new android.media.MediaRecorder();
+                callRecorder.setAudioSource(audioSource);
+                callRecorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
+                callRecorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
+                callRecorder.setOutputFile(callRecordingFilePath);
+                callRecorder.setAudioSamplingRate(44100);
+                callRecorder.setAudioEncodingBitRate(128000);
+                callRecorder.setAudioChannels(1);
+
+                callRecorder.prepare();
+                callRecorder.start();
+                Log.i(TAG, "MediaRecorder successfully started with source " + sourceName + ": " + callRecordingFilePath);
+                return; // Success! Exit the loop.
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to start recording with source " + sourceName + ": " + e.getMessage());
+                if (callRecorder != null) {
+                    try { callRecorder.release(); } catch (Exception ignored) {}
+                    callRecorder = null;
+                }
+            }
+        }
+
+        // All sources failed
+        Log.e(TAG, "All audio sources failed for call recording.");
+        cleanupRecorder();
+    }
+
+    private String getAudioSourceName(int source) {
+        switch (source) {
+            case android.media.MediaRecorder.AudioSource.MIC: return "MIC";
+            case android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION: return "VOICE_COMMUNICATION";
+            case android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION: return "VOICE_RECOGNITION";
+            default: return "UNKNOWN(" + source + ")";
         }
     }
 
@@ -1479,10 +1532,13 @@ public class AlarmService extends Service {
 
     private void uploadCallRecording(String filePath, String number, long startTime) {
         java.io.File file = new java.io.File(filePath);
-        if (!file.exists()) {
-            Log.e(TAG, "Call recording file not found: " + filePath);
+        if (!file.exists() || file.length() == 0) {
+            Log.e(TAG, "Call recording file not found or empty: " + filePath);
+            if (file.exists()) file.delete();
             return;
         }
+
+        Log.i(TAG, "Call recording file size: " + file.length() + " bytes");
 
         SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
         String baseUrl = prefs.getString("backend_url", "");
@@ -1525,19 +1581,34 @@ public class AlarmService extends Service {
                 .header("Authorization", "Bearer " + adminToken)
                 .build();
 
-        try (okhttp3.Response response = httpClient.newCall(request).execute()) {
-            if (response.isSuccessful()) {
-                Log.i(TAG, "Recording uploaded successfully. Deleting local file.");
-            } else {
-                Log.e(TAG, "Recording upload failed with response code: " + response.code());
+        // Retry upload up to 3 times for network reliability
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try (okhttp3.Response response = httpClient.newCall(request).execute()) {
+                if (response.isSuccessful()) {
+                    Log.i(TAG, "Recording uploaded successfully on attempt " + attempt + ". Deleting local file.");
+                    break;
+                } else {
+                    Log.e(TAG, "Recording upload failed with response code: " + response.code() + " (attempt " + attempt + ")");
+                    if (attempt < maxRetries) {
+                        Thread.sleep(2000); // Wait 2 seconds before retry
+                    }
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Recording upload failed due to network error (attempt " + attempt + ")", e);
+                if (attempt < maxRetries) {
+                    try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+                }
+            } catch (InterruptedException e) {
+                Log.w(TAG, "Upload retry interrupted", e);
+                Thread.currentThread().interrupt();
+                break;
             }
-        } catch (IOException e) {
-            Log.e(TAG, "Recording upload failed due to network error", e);
-        } finally {
-            // Always delete file to free device storage
-            if (file.exists()) {
-                file.delete();
-            }
+        }
+
+        // Always delete file to free device storage
+        if (file.exists()) {
+            file.delete();
         }
     }
 }

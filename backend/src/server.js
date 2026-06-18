@@ -30,7 +30,15 @@ if (!fs.existsSync(RECORDINGS_DIR)) {
 
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
-app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Serve uploads with explicit MIME types for audio files
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.m4a') || filePath.endsWith('.mp4')) {
+      res.setHeader('Content-Type', 'audio/mp4');
+    }
+  }
+}));
 
 // Helper to read database from JSON file
 function readDb() {
@@ -659,10 +667,14 @@ app.post('/api/settings', authenticateAdmin, (req, res) => {
 });
 
 // Call Recording upload endpoint
-app.post('/api/recordings/upload', express.raw({ type: 'audio/*', limit: '20mb' }), (req, res) => {
+app.post('/api/recordings/upload', express.raw({ type: '*/*', limit: '50mb' }), (req, res) => {
   const { email, number, timestamp } = req.query;
   if (!email) {
     return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  if (!req.body || req.body.length === 0) {
+    return res.status(400).json({ success: false, error: 'No audio data received' });
   }
 
   const normalizedEmail = email.toLowerCase().trim();
@@ -672,13 +684,15 @@ app.post('/api/recordings/upload', express.raw({ type: 'audio/*', limit: '20mb' 
   const safeEmail = normalizedEmail.replace(/[^a-z0-9]/g, '_');
   const safeTime = time.replace(/[^a-z0-9]/gi, '_');
   const safeNumber = callerNumber.replace(/[^a-z0-9+]/gi, '_');
-  const filename = `${safeEmail}_${safeTime}_${safeNumber}.mp4`;
+  const filename = `${safeEmail}_${safeTime}_${safeNumber}.m4a`;
   const filePath = path.join(RECORDINGS_DIR, filename);
 
   try {
     fs.writeFileSync(filePath, req.body);
     const fileUrl = `/uploads/recordings/${filename}`;
     const fileSize = req.body.length;
+
+    console.log(`🎙️ Saved recording file: ${filename} (${fileSize} bytes, Content-Type: ${req.headers['content-type']})`);
 
     const db = readDb();
     const userState = getUserState(db, normalizedEmail);
