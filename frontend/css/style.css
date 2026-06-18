@@ -667,7 +667,7 @@ body.theme-white .status-card-stat {
 /* Portrait device frame simulator for screen mirror (Pink Theme) */
 .screen-viewport-portrait {
   width: 290px;
-  height: 520px;
+  height: 580px;
   border-radius: 12px; /* Samsung Galaxy S23 Ultra sharp corners */
   border: 6px solid #0F172A; /* Thin premium bezels */
   background: #1E293B;
@@ -1134,7 +1134,7 @@ body.theme-white .status-card-stat {
 @media (max-width: 480px) {
   .screen-viewport-portrait {
     width: 240px;
-    height: 430px;
+    height: 480px;
     border-width: 4px; /* Thin bezel for smaller screens */
     border-radius: 8px; /* Sharp corners for smaller screens */
   }
