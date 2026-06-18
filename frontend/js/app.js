@@ -5,7 +5,7 @@ let config = {
   adminEmail: localStorage.getItem('admin_email') || 'user@example.com',
   sound: localStorage.getItem('selected_sound') || 'default',
   customSoundUrl: localStorage.getItem('custom_sound_url') || '',
-  callRecordSource: localStorage.getItem('call_record_source') || 'voice_recognition'
+  callRecordSource: localStorage.getItem('call_record_source') || 'voice_call'
 };
 
 // If loaded locally via file://, fallback to default port 3000
@@ -216,7 +216,7 @@ async function saveSettings(e) {
   config.sound = selectedSound;
 
   const recordSourceSelect = document.getElementById('recording-source-select');
-  const selectedRecordSource = recordSourceSelect ? recordSourceSelect.value : 'voice_recognition';
+  const selectedRecordSource = recordSourceSelect ? recordSourceSelect.value : 'voice_call';
   config.callRecordSource = selectedRecordSource;
 
   localStorage.setItem('server_url', config.serverUrl);

