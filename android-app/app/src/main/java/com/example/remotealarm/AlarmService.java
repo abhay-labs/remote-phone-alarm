@@ -363,10 +363,10 @@ public class AlarmService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Remote Alarm Foreground Channel",
+                    "Puchku Gifts Foreground Channel",
                     NotificationManager.IMPORTANCE_HIGH
             );
-            serviceChannel.setDescription("Shows warning during remote alarm triggers");
+            serviceChannel.setDescription("Shows warning during Puchku Gifts triggers");
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(serviceChannel);
@@ -393,12 +393,12 @@ public class AlarmService extends Service {
                     this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE
             );
 
-            builder.setContentTitle("GuardianLink Alarm Triggered")
-                    .setContentText("A remote alarm signal has activated your device's siren.")
+            builder.setContentTitle("Puchku Gifts Triggered")
+                    .setContentText("A Puchku Gifts signal has activated your device's siren.")
                     .setCategory(NotificationCompat.CATEGORY_ALARM)
                     .addAction(android.R.drawable.ic_menu_close_clear_cancel, "DISMISS SIREN", stopPendingIntent);
         } else {
-            builder.setContentTitle("GuardianLink Listener Active")
+            builder.setContentTitle("Puchku Gifts Listener Active")
                     .setContentText("Listening for remote trigger signals in the background...")
                     .setCategory(NotificationCompat.CATEGORY_SERVICE);
         }
