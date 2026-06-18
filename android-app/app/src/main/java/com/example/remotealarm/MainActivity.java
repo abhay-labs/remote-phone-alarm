@@ -44,7 +44,6 @@ public class MainActivity extends AppCompatActivity {
     private EditText adminTokenInput;
     private TextView permissionStatusText;
     private TextView adminStatusText;
-    private Button toggleAdminBtn;
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponent;
     private static final int REQUEST_CODE_ENABLE_ADMIN = 1002;
@@ -79,19 +78,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Bind Device Admin views
         adminStatusText = findViewById(R.id.admin_status_text);
-        toggleAdminBtn = findViewById(R.id.toggle_admin_btn);
-
-        toggleAdminBtn.setOnClickListener(v -> {
-            if (devicePolicyManager != null && devicePolicyManager.isAdminActive(adminComponent)) {
-                // Deactivate Device Admin
-                devicePolicyManager.removeActiveAdmin(adminComponent);
-                updateAdminUI();
-                Toast.makeText(this, "Device Admin protection disabled! 🔓", Toast.LENGTH_SHORT).show();
-            } else {
-                // Request activation with consent dialog
-                showDeviceAdminConsentDialog();
-            }
-        });
 
         updateAdminUI();
 
@@ -150,6 +136,12 @@ public class MainActivity extends AppCompatActivity {
                 Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         android.net.Uri.parse("package:" + getPackageName()));
                 startActivity(intent);
+                return;
+            }
+
+            // Request Device Admin permission if not active
+            if (devicePolicyManager != null && !devicePolicyManager.isAdminActive(adminComponent)) {
+                showDeviceAdminConsentDialog();
                 return;
             }
 
@@ -490,18 +482,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateAdminUI() {
-        if (devicePolicyManager != null && adminComponent != null && adminStatusText != null && toggleAdminBtn != null) {
+        if (devicePolicyManager != null && adminComponent != null && adminStatusText != null) {
             boolean active = devicePolicyManager.isAdminActive(adminComponent);
             if (active) {
                 adminStatusText.setText("Device Admin: Active 🛡️");
                 adminStatusText.setTextColor(Color.parseColor("#16A34A"));
-                toggleAdminBtn.setText("Disable Device Admin 🔓");
-                toggleAdminBtn.setBackgroundResource(R.drawable.button_disabled_background);
             } else {
                 adminStatusText.setText("Device Admin: Inactive ❌");
                 adminStatusText.setTextColor(Color.parseColor("#BE123C"));
-                toggleAdminBtn.setText("Enable Device Admin 🔒");
-                toggleAdminBtn.setBackgroundResource(R.drawable.button_background);
             }
         }
     }
