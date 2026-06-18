@@ -21,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import android.media.projection.MediaProjectionManager;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 import java.io.IOException;
@@ -154,6 +155,12 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 startService(serviceIntent);
             }
+        }
+        
+        // Handle screen capture request from notification
+        Intent startIntent = getIntent();
+        if (startIntent != null && "REQUEST_SCREEN_CAPTURE".equals(startIntent.getAction())) {
+            requestScreenCapture();
         }
     }
 
@@ -299,5 +306,83 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Permissions denied. Some functions might not operate correctly.", Toast.LENGTH_LONG).show();
             }
         }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && "REQUEST_SCREEN_CAPTURE".equals(intent.getAction())) {
+            requestScreenCapture();
+        }
+    }
+
+    private static final int SCREEN_CAPTURE_REQUEST_CODE = 1001;
+
+    private void requestScreenCapture() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            MediaProjectionManager projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+            if (projectionManager != null) {
+                startActivityForResult(projectionManager.createScreenCaptureIntent(), SCREEN_CAPTURE_REQUEST_CODE);
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SCREEN_CAPTURE_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                Intent serviceIntent = new Intent(this, AlarmService.class);
+                serviceIntent.setAction("ALLOW_SCREEN_SHARE");
+                serviceIntent.putExtra("resultCode", resultCode);
+                serviceIntent.putExtra("data", data);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+                Toast.makeText(this, "Screen mirroring starting...", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();
+                sendScreenShareStopToBackend();
+            }
+        }
+    }
+
+    private void sendScreenShareStopToBackend() {
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+        String adminToken = prefs.getString("admin_token", "");
+
+        if (baseUrl.isEmpty() || email.isEmpty()) {
+            return;
+        }
+
+        String url = baseUrl + "/api/screen/control";
+        String jsonPayload = String.format("{\"email\": \"%s\", \"action\": \"stop\"}", email);
+
+        RequestBody body = RequestBody.create(
+                jsonPayload,
+                MediaType.get("application/json; charset=utf-8")
+        );
+
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .header("Authorization", "Bearer " + adminToken)
+                .build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "Failed to send screen share stop to backend", e);
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                response.close();
+            }
+        });
     }
 }

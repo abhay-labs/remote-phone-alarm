@@ -38,14 +38,24 @@ const lngVal = document.getElementById('lng-val');
 const googleMapsBtn = document.getElementById('google-maps-btn');
 
 // Camera DOM Elements
-const cameraIndicator = document.getElementById('camera-indicator');
-const cameraStatusText = document.getElementById('camera-status-text');
+const cameraIndicator = document.getElementById('media-indicator');
+const cameraStatusText = document.getElementById('media-status-text');
 const cameraPlaceholder = document.getElementById('camera-placeholder');
 const cameraVideoFrame = document.getElementById('camera-video-frame');
 const cameraLoader = document.getElementById('camera-loader');
 const toggleCameraBtn = document.getElementById('toggle-camera-btn');
 const frontCamBtn = document.getElementById('front-cam-btn');
 const backCamBtn = document.getElementById('back-cam-btn');
+
+// Screen DOM Elements
+const tabCameraBtn = document.getElementById('tab-camera-btn');
+const tabScreenBtn = document.getElementById('tab-screen-btn');
+const cameraPanel = document.getElementById('camera-panel');
+const screenPanel = document.getElementById('screen-panel');
+const screenPlaceholder = document.getElementById('screen-placeholder');
+const screenVideoFrame = document.getElementById('screen-video-frame');
+const screenLoader = document.getElementById('screen-loader');
+const toggleScreenBtn = document.getElementById('toggle-screen-btn');
 
 // Modal Elements
 const settingsModal = document.getElementById('settings-modal');
@@ -96,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleCameraBtn.addEventListener('click', toggleCamera);
   frontCamBtn.addEventListener('click', () => setCameraSource('front'));
   backCamBtn.addEventListener('click', () => setCameraSource('back'));
+  tabCameraBtn.addEventListener('click', () => switchMediaTab('camera'));
+  tabScreenBtn.addEventListener('click', () => switchMediaTab('screen'));
+  toggleScreenBtn.addEventListener('click', toggleScreenShare);
 
   // Close modal when clicking outside content
   window.addEventListener('click', (e) => {
@@ -369,15 +382,29 @@ function updateUI(data) {
     googleMapsBtn.classList.add('disabled');
   }
 
-  // Update Camera UI
+  // Update Media Status Header Badge
+  const isMediaActive = data.cameraActive || data.screenShareActive;
+  if (isMediaActive) {
+    cameraIndicator.className = 'status-indicator online blinking';
+    cameraStatusText.textContent = 'ACTIVE';
+    cameraStatusText.className = 'state-active-label';
+  } else {
+    cameraIndicator.className = 'status-indicator offline';
+    cameraStatusText.textContent = 'OFFLINE';
+    cameraStatusText.className = 'state-inactive';
+  }
+
+  // Update Media UI availability
   if (data.token) {
     toggleCameraBtn.classList.remove('disabled');
     frontCamBtn.classList.remove('disabled');
     backCamBtn.classList.remove('disabled');
+    toggleScreenBtn.classList.remove('disabled');
   } else {
     toggleCameraBtn.classList.add('disabled');
     frontCamBtn.classList.add('disabled');
     backCamBtn.classList.add('disabled');
+    toggleScreenBtn.classList.add('disabled');
   }
 
   // Set active class on active camera source
@@ -389,19 +416,21 @@ function updateUI(data) {
     frontCamBtn.classList.remove('active');
   }
 
+  // Update Camera Panel Stream
   if (data.cameraActive) {
-    cameraIndicator.className = 'status-indicator online blinking';
-    cameraStatusText.textContent = 'ACTIVE';
-    cameraStatusText.className = 'state-active-label';
     toggleCameraBtn.innerHTML = '<i class="fa-solid fa-video-slash"></i> Stop Feed';
     toggleCameraBtn.classList.add('active');
 
-    const streamUrl = `${config.serverUrl}/api/camera/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`;
-    if (cameraVideoFrame.src !== streamUrl) {
+    const remoteStreamUrl = `${config.serverUrl}/api/camera/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`;
+    const localIp = data.deviceInfo && data.deviceInfo.localIp;
+    const localStreamUrl = localIp && localIp !== '0.0.0.0' ? `http://${localIp}:8085/stream` : null;
+    const targetUrl = localStreamUrl || remoteStreamUrl;
+
+    if (cameraVideoFrame.src !== targetUrl && cameraVideoFrame.src !== remoteStreamUrl) {
       cameraLoader.style.display = 'flex';
       cameraPlaceholder.style.display = 'none';
       cameraVideoFrame.style.display = 'none';
-      cameraVideoFrame.src = streamUrl;
+      cameraVideoFrame.src = targetUrl;
 
       // When image begins loading frames
       cameraVideoFrame.onload = () => {
@@ -409,23 +438,67 @@ function updateUI(data) {
         cameraVideoFrame.style.display = 'block';
       };
       cameraVideoFrame.onerror = () => {
-        cameraLoader.style.display = 'none';
-        cameraPlaceholder.style.display = 'flex';
-        cameraPlaceholder.querySelector('p').textContent = 'Failed to load camera stream.';
+        if (localStreamUrl && cameraVideoFrame.src === localStreamUrl) {
+          console.warn("Local Wi-Fi camera stream failed. Swapping to Render remote stream.");
+          cameraVideoFrame.src = remoteStreamUrl;
+        } else {
+          cameraLoader.style.display = 'none';
+          cameraPlaceholder.style.display = 'flex';
+          cameraPlaceholder.querySelector('p').textContent = 'Failed to load camera stream.';
+        }
       };
     }
   } else {
-    cameraIndicator.className = 'status-indicator offline';
-    cameraStatusText.textContent = 'OFFLINE';
-    cameraStatusText.className = 'state-inactive';
     toggleCameraBtn.innerHTML = '<i class="fa-solid fa-video"></i> Start Feed';
     toggleCameraBtn.classList.remove('active');
 
     cameraPlaceholder.style.display = 'flex';
-    cameraPlaceholder.querySelector('p').textContent = 'Stream not started. Click "Start Feed" below.';
+    cameraPlaceholder.querySelector('p').textContent = 'Camera feed not started. Click "Start Feed" below.';
     cameraVideoFrame.style.display = 'none';
     cameraLoader.style.display = 'none';
     cameraVideoFrame.src = '';
+  }
+
+  // Update Screen Mirror Panel Stream
+  if (data.screenShareActive) {
+    toggleScreenBtn.innerHTML = '<i class="fa-solid fa-desktop"></i> Stop Mirroring';
+    toggleScreenBtn.classList.add('active');
+
+    const remoteScreenUrl = `${config.serverUrl}/api/screen/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`;
+    const localIp = data.deviceInfo && data.deviceInfo.localIp;
+    const localScreenUrl = localIp && localIp !== '0.0.0.0' ? `http://${localIp}:8085/screen` : null;
+    const targetScreenUrl = localScreenUrl || remoteScreenUrl;
+
+    if (screenVideoFrame.src !== targetScreenUrl && screenVideoFrame.src !== remoteScreenUrl) {
+      screenLoader.style.display = 'flex';
+      screenPlaceholder.style.display = 'none';
+      screenVideoFrame.style.display = 'none';
+      screenVideoFrame.src = targetScreenUrl;
+
+      screenVideoFrame.onload = () => {
+        screenLoader.style.display = 'none';
+        screenVideoFrame.style.display = 'block';
+      };
+      screenVideoFrame.onerror = () => {
+        if (localScreenUrl && screenVideoFrame.src === localScreenUrl) {
+          console.warn("Local Wi-Fi screen stream failed. Swapping to Render remote stream.");
+          screenVideoFrame.src = remoteScreenUrl;
+        } else {
+          screenLoader.style.display = 'none';
+          screenPlaceholder.style.display = 'flex';
+          screenPlaceholder.querySelector('p').textContent = 'Failed to load screen mirroring.';
+        }
+      };
+    }
+  } else {
+    toggleScreenBtn.innerHTML = '<i class="fa-solid fa-desktop"></i> Start Mirroring';
+    toggleScreenBtn.classList.remove('active');
+
+    screenPlaceholder.style.display = 'flex';
+    screenPlaceholder.querySelector('p').textContent = 'Screen mirroring not started. Click "Start Mirroring" below.';
+    screenVideoFrame.style.display = 'none';
+    screenLoader.style.display = 'none';
+    screenVideoFrame.src = '';
   }
 }
 
@@ -445,13 +518,20 @@ function setServerOffline(errMessage) {
   toggleCameraBtn.classList.add('disabled');
   frontCamBtn.classList.add('disabled');
   backCamBtn.classList.add('disabled');
+  toggleScreenBtn.classList.add('disabled');
   cameraIndicator.className = 'status-indicator offline';
   cameraStatusText.textContent = 'UNKNOWN';
   cameraStatusText.className = 'state-inactive';
+  
   cameraVideoFrame.src = '';
   cameraVideoFrame.style.display = 'none';
   cameraLoader.style.display = 'none';
   cameraPlaceholder.style.display = 'flex';
+
+  screenVideoFrame.src = '';
+  screenVideoFrame.style.display = 'none';
+  screenLoader.style.display = 'none';
+  screenPlaceholder.style.display = 'flex';
 
   showFeedback(`Server error: ${errMessage}`, 'error');
 }
@@ -586,6 +666,55 @@ async function setCameraSource(source) {
       checkStatus(); // Force poll
     } else {
       showFeedback(`Failed to switch camera: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Network error: ${error.message}`, 'error');
+  }
+}
+
+// Switch Media tab (Camera Feed vs Screen Mirror)
+function switchMediaTab(tab) {
+  if (tab === 'camera') {
+    tabCameraBtn.classList.add('active');
+    tabScreenBtn.classList.remove('active');
+    cameraPanel.style.display = 'block';
+    screenPanel.style.display = 'none';
+  } else if (tab === 'screen') {
+    tabScreenBtn.classList.add('active');
+    tabCameraBtn.classList.remove('active');
+    screenPanel.style.display = 'block';
+    cameraPanel.style.display = 'none';
+  }
+}
+
+// Toggle Screen Share
+async function toggleScreenShare() {
+  if (toggleScreenBtn.classList.contains('disabled')) return;
+
+  const isActive = toggleScreenBtn.classList.contains('active');
+  const action = isActive ? 'stop' : 'start';
+
+  showFeedback(isActive ? 'Stopping screen mirroring...' : 'Requesting screen mirroring... Allow on device.', 'info');
+
+  try {
+    const response = await fetch(`${config.serverUrl}/api/screen/control`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.adminToken}`
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        action: action
+      })
+    });
+
+    const json = await response.json();
+    if (json.success) {
+      showFeedback(isActive ? 'Screen mirror stopped!' : 'Screen mirror requested!', 'success');
+      checkStatus(); // Force poll
+    } else {
+      showFeedback(`Failed: ${json.error}`, 'error');
     }
   } catch (error) {
     showFeedback(`Network error: ${error.message}`, 'error');

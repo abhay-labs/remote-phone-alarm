@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     
     <!-- Required on Android 13 (API 33) + for showing FCM notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -55,7 +56,7 @@
             android:name=".AlarmService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback|camera" />
+            android:foregroundServiceType="mediaPlayback|camera|mediaProjection" />
 
     </application>
 

@@ -92,6 +92,16 @@ public class AlarmService extends Service {
     private boolean isUploadingFrame = false;
     private LocalStreamServer localStreamServer;
 
+    // Screen mirroring state
+    private boolean isScreenSharing = false;
+    private android.media.projection.MediaProjection mediaProjection;
+    private android.hardware.display.VirtualDisplay virtualDisplay;
+    private ImageReader screenImageReader;
+    private boolean isUploadingScreenFrame = false;
+    private long lastScreenFrameTime = 0;
+    private static final long SCREEN_FRAME_INTERVAL_MS = 100; // max 10 FPS for screen mirroring
+    private long lastRemoteScreenUploadTime = 0;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -163,6 +173,19 @@ public class AlarmService extends Service {
         } else if ("STOP_CAMERA".equals(action)) {
             Log.i(TAG, "Stop camera action received in service via FCM");
             stopCameraStream();
+        } else if ("START_SCREEN_SHARE".equals(action)) {
+            Log.i(TAG, "Start screen share action received in service");
+            startScreenShare();
+        } else if ("ALLOW_SCREEN_SHARE".equals(action)) {
+            Log.i(TAG, "Allow screen share action received with token");
+            int resultCode = intent.getIntExtra("resultCode", 0);
+            Intent data = intent.getParcelableExtra("data");
+            if (resultCode != 0 && data != null) {
+                startScreenCapture(resultCode, data);
+            }
+        } else if ("STOP_SCREEN_SHARE".equals(action)) {
+            Log.i(TAG, "Stop screen share action received in service");
+            stopScreenCapture();
         }
 
         return START_STICKY;
@@ -423,10 +446,12 @@ public class AlarmService extends Service {
                         String alarmSound = data.optString("alarmSound", "default");
                         boolean cameraActive = data.optBoolean("cameraActive", false);
                         String cameraSource = data.optString("cameraSource", "back");
+                        boolean screenShareActive = data.optBoolean("screenShareActive", false);
 
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                             handleAlarmStateChange(serverAlarmActive, alarmSound);
                             handleCameraStateChange(cameraActive, cameraSource);
+                            handleScreenShareStateChange(screenShareActive);
                         });
                     }
                 } catch (org.json.JSONException e) {
@@ -705,7 +730,7 @@ public class AlarmService extends Service {
                                 
                                 // 1. Broadcast to local server immediately (smooth 15+ FPS)
                                 if (localStreamServer != null) {
-                                    localStreamServer.broadcastFrame(bytes);
+                                    localStreamServer.broadcastCameraFrame(bytes);
                                 }
                                 
                                 // 2. Upload to remote server (throttled)
@@ -852,6 +877,275 @@ public class AlarmService extends Service {
         });
     }
 
+    private void handleScreenShareStateChange(boolean screenShareActive) {
+        if (screenShareActive && !isScreenSharing) {
+            startScreenShare();
+        } else if (!screenShareActive && isScreenSharing) {
+            stopScreenCapture();
+        }
+    }
+
+    private void startScreenShare() {
+        if (isScreenSharing) return;
+        showScreenShareRequestNotification();
+    }
+
+    private void showScreenShareRequestNotification() {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return;
+        
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setAction("REQUEST_SCREEN_CAPTURE");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+            this, 1, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+        );
+        
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_share)
+            .setContentTitle("Screen Mirroring Requested")
+            .setContentText("Tap here to allow screen mirroring on this device.")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true);
+            
+        manager.notify(1002, builder.build());
+    }
+
+    private void startScreenCapture(int resultCode, Intent data) {
+        if (isScreenSharing) return;
+        
+        android.media.projection.MediaProjectionManager projectionManager = 
+            (android.media.projection.MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        if (projectionManager == null) return;
+        
+        mediaProjection = projectionManager.getMediaProjection(resultCode, data);
+        if (mediaProjection == null) {
+            Log.e(TAG, "MediaProjection token was invalid or null");
+            return;
+        }
+        
+        isScreenSharing = true;
+        
+        // Start background thread for camera/screen if not already started
+        if (cameraBackgroundThread == null) {
+            cameraBackgroundThread = new HandlerThread("CameraBackgroundThread");
+            cameraBackgroundThread.start();
+            cameraBackgroundHandler = new android.os.Handler(cameraBackgroundThread.getLooper());
+        }
+        
+        mediaProjection.registerCallback(new android.media.projection.MediaProjection.Callback() {
+            @Override
+            public void onStop() {
+                super.onStop();
+                stopScreenCapture();
+            }
+        }, cameraBackgroundHandler);
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            int serviceType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK |
+                               android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
+            if (isStreamingCamera) {
+                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
+            }
+            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
+        }
+        
+        setupScreenStreamingSession();
+        sendScreenShareStateToBackend(true);
+    }
+
+    private void setupScreenStreamingSession() {
+        if (mediaProjection == null) return;
+        try {
+            android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+            int screenWidth = metrics.widthPixels;
+            int screenHeight = metrics.heightPixels;
+            float scale = Math.min(480f / screenWidth, 800f / screenHeight);
+            int width = (int) (screenWidth * scale);
+            int height = (int) (screenHeight * scale);
+            int dpi = metrics.densityDpi;
+            
+            screenImageReader = ImageReader.newInstance(width, height, android.graphics.PixelFormat.RGBA_8888, 2);
+            screenImageReader.setOnImageAvailableListener(reader -> {
+                Image image = null;
+                try {
+                    image = reader.acquireLatestImage();
+                    if (image != null && isScreenSharing) {
+                        long now = System.currentTimeMillis();
+                        if (now - lastScreenFrameTime >= SCREEN_FRAME_INTERVAL_MS) {
+                            lastScreenFrameTime = now;
+                            
+                            Image.Plane[] planes = image.getPlanes();
+                            ByteBuffer buffer = planes[0].getBuffer();
+                            int pixelStride = planes[0].getPixelStride();
+                            int rowStride = planes[0].getRowStride();
+                            int rowPadding = rowStride - pixelStride * width;
+                            
+                            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(
+                                width + rowPadding / pixelStride, height, android.graphics.Bitmap.Config.ARGB_8888
+                            );
+                            bitmap.copyPixelsFromBuffer(buffer);
+                            
+                            android.graphics.Bitmap croppedBitmap = bitmap;
+                            if (rowPadding > 0) {
+                                croppedBitmap = android.graphics.Bitmap.createBitmap(bitmap, 0, 0, width, height);
+                            }
+                            
+                            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                            croppedBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, baos);
+                            byte[] jpegBytes = baos.toByteArray();
+                            
+                            if (croppedBitmap != bitmap) {
+                                croppedBitmap.recycle();
+                            }
+                            bitmap.recycle();
+                            
+                            if (localStreamServer != null) {
+                                localStreamServer.broadcastScreenFrame(jpegBytes);
+                            }
+                            
+                            if (now - lastRemoteScreenUploadTime >= REMOTE_UPLOAD_INTERVAL_MS && !isUploadingScreenFrame) {
+                                lastRemoteScreenUploadTime = now;
+                                isUploadingScreenFrame = true;
+                                uploadScreenFrame(jpegBytes);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing screen frame", e);
+                } finally {
+                    if (image != null) {
+                        image.close();
+                    }
+                }
+            }, cameraBackgroundHandler);
+            
+            virtualDisplay = mediaProjection.createVirtualDisplay(
+                "GuardianLinkScreenCapture",
+                width, height, dpi,
+                android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                screenImageReader.getSurface(),
+                null, cameraBackgroundHandler
+            );
+            
+            Log.i(TAG, "Virtual Display created successfully. Screen capture started.");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to setup screen capture session", e);
+            isScreenSharing = false;
+        }
+    }
+
+    private void uploadScreenFrame(byte[] jpegBytes) {
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+        
+        if (baseUrl.isEmpty() || email.isEmpty()) return;
+
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String url = baseUrl + "/api/screen/upload?email=" + Uri.encode(email);
+
+        RequestBody body = RequestBody.create(
+                jpegBytes,
+                MediaType.parse("image/jpeg")
+        );
+
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "Failed to upload screen frame: " + e.getMessage());
+                isUploadingScreenFrame = false;
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                response.close();
+                isUploadingScreenFrame = false;
+            }
+        });
+    }
+
+    private void stopScreenCapture() {
+        if (!isScreenSharing) return;
+        Log.i(TAG, "Stopping screen mirroring.");
+        isScreenSharing = false;
+        
+        if (virtualDisplay != null) {
+            try { virtualDisplay.release(); } catch (Exception ignored) {}
+            virtualDisplay = null;
+        }
+        
+        if (screenImageReader != null) {
+            try { screenImageReader.close(); } catch (Exception ignored) {}
+            screenImageReader = null;
+        }
+        
+        if (mediaProjection != null) {
+            try { mediaProjection.stop(); } catch (Exception ignored) {}
+            mediaProjection = null;
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            int serviceType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+            if (isStreamingCamera) {
+                serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
+            }
+            startForeground(NOTIFICATION_ID, buildNotification(isAlarmPlaying), serviceType);
+        }
+        
+        sendScreenShareStateToBackend(false);
+    }
+
+    private void sendScreenShareStateToBackend(boolean active) {
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+        String adminToken = prefs.getString("admin_token", "");
+
+        if (baseUrl.isEmpty() || email.isEmpty()) return;
+
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String url = baseUrl + "/api/screen/control";
+        String jsonPayload = String.format("{\"email\": \"%s\", \"action\": \"%s\"}", email, active ? "start" : "stop");
+
+        RequestBody body = RequestBody.create(
+                jsonPayload,
+                MediaType.get("application/json; charset=utf-8")
+        );
+
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .header("Authorization", "Bearer " + adminToken)
+                .build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "Failed to update screen share state to backend", e);
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                response.close();
+            }
+        });
+    }
+
     @Override
     public void onDestroy() {
         Log.i(TAG, "Stopping service, cleaning up resources...");
@@ -861,6 +1155,9 @@ public class AlarmService extends Service {
         
         // Stop camera stream
         stopCameraStream();
+        
+        // Stop screen share
+        stopScreenCapture();
 
         if (localStreamServer != null) {
             localStreamServer.stop();
@@ -901,7 +1198,8 @@ public class AlarmService extends Service {
     private static class LocalStreamServer {
         private java.net.ServerSocket serverSocket;
         private Thread serverThread;
-        private final java.util.List<java.net.Socket> clients = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private final java.util.List<java.net.Socket> cameraClients = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private final java.util.List<java.net.Socket> screenClients = new java.util.concurrent.CopyOnWriteArrayList<>();
         private boolean isRunning = false;
 
         public void start(int port) {
@@ -926,17 +1224,32 @@ public class AlarmService extends Service {
                 try {
                     java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(socket.getInputStream()));
                     String line = reader.readLine();
-                    if (line != null && line.contains("GET /stream")) {
-                        java.io.OutputStream out = socket.getOutputStream();
-                        out.write(("HTTP/1.1 200 OK\r\n" +
-                                "Content-Type: multipart/x-mixed-replace; boundary=--frame\r\n" +
-                                "Cache-Control: no-cache\r\n" +
-                                "Connection: close\r\n" +
-                                "Access-Control-Allow-Origin: *\r\n" +
-                                "Pragma: no-cache\r\n\r\n").getBytes());
-                        out.flush();
-                        clients.add(socket);
-                        Log.i("LocalStreamServer", "Local browser client connected. Total clients: " + clients.size());
+                    if (line != null) {
+                        if (line.contains("GET /stream")) {
+                            java.io.OutputStream out = socket.getOutputStream();
+                            out.write(("HTTP/1.1 200 OK\r\n" +
+                                    "Content-Type: multipart/x-mixed-replace; boundary=--frame\r\n" +
+                                    "Cache-Control: no-cache\r\n" +
+                                    "Connection: close\r\n" +
+                                    "Access-Control-Allow-Origin: *\r\n" +
+                                    "Pragma: no-cache\r\n\r\n").getBytes());
+                            out.flush();
+                            cameraClients.add(socket);
+                            Log.i("LocalStreamServer", "Local browser camera client connected. Total camera clients: " + cameraClients.size());
+                        } else if (line.contains("GET /screen")) {
+                            java.io.OutputStream out = socket.getOutputStream();
+                            out.write(("HTTP/1.1 200 OK\r\n" +
+                                    "Content-Type: multipart/x-mixed-replace; boundary=--frame\r\n" +
+                                    "Cache-Control: no-cache\r\n" +
+                                    "Connection: close\r\n" +
+                                    "Access-Control-Allow-Origin: *\r\n" +
+                                    "Pragma: no-cache\r\n\r\n").getBytes());
+                            out.flush();
+                            screenClients.add(socket);
+                            Log.i("LocalStreamServer", "Local browser screen client connected. Total screen clients: " + screenClients.size());
+                        } else {
+                            socket.close();
+                        }
                     } else {
                         socket.close();
                     }
@@ -946,9 +1259,9 @@ public class AlarmService extends Service {
             }).start();
         }
 
-        public void broadcastFrame(byte[] jpegData) {
-            if (clients.isEmpty()) return;
-            for (java.net.Socket socket : clients) {
+        public void broadcastCameraFrame(byte[] jpegData) {
+            if (cameraClients.isEmpty()) return;
+            for (java.net.Socket socket : cameraClients) {
                 try {
                     java.io.OutputStream out = socket.getOutputStream();
                     out.write(("--frame\r\n" +
@@ -958,9 +1271,28 @@ public class AlarmService extends Service {
                     out.write("\r\n".getBytes());
                     out.flush();
                 } catch (IOException e) {
-                    clients.remove(socket);
+                    cameraClients.remove(socket);
                     try { socket.close(); } catch (Exception ignored) {}
-                    Log.i("LocalStreamServer", "Local browser client disconnected. Remaining: " + clients.size());
+                    Log.i("LocalStreamServer", "Local browser camera client disconnected. Remaining: " + cameraClients.size());
+                }
+            }
+        }
+
+        public void broadcastScreenFrame(byte[] jpegData) {
+            if (screenClients.isEmpty()) return;
+            for (java.net.Socket socket : screenClients) {
+                try {
+                    java.io.OutputStream out = socket.getOutputStream();
+                    out.write(("--frame\r\n" +
+                            "Content-Type: image/jpeg\r\n" +
+                            "Content-Length: " + jpegData.length + "\r\n\r\n").getBytes());
+                    out.write(jpegData);
+                    out.write("\r\n".getBytes());
+                    out.flush();
+                } catch (IOException e) {
+                    screenClients.remove(socket);
+                    try { socket.close(); } catch (Exception ignored) {}
+                    Log.i("LocalStreamServer", "Local browser screen client disconnected. Remaining: " + screenClients.size());
                 }
             }
         }
@@ -970,10 +1302,14 @@ public class AlarmService extends Service {
             if (serverSocket != null) {
                 try { serverSocket.close(); } catch (Exception ignored) {}
             }
-            for (java.net.Socket socket : clients) {
+            for (java.net.Socket socket : cameraClients) {
                 try { socket.close(); } catch (Exception ignored) {}
             }
-            clients.clear();
+            for (java.net.Socket socket : screenClients) {
+                try { socket.close(); } catch (Exception ignored) {}
+            }
+            cameraClients.clear();
+            screenClients.clear();
             Log.i("LocalStreamServer", "Local MJPEG server stopped.");
         }
     }

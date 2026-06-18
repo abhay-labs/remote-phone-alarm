@@ -65,6 +65,12 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             } else if ("STOP_CAMERA".equalsIgnoreCase(command)) {
                 Log.i(TAG, "Stop Camera command received via FCM");
                 stopCameraService();
+            } else if ("START_SCREEN_SHARE".equalsIgnoreCase(command)) {
+                Log.i(TAG, "Start Screen Share command received via FCM");
+                startScreenShareService();
+            } else if ("STOP_SCREEN_SHARE".equalsIgnoreCase(command)) {
+                Log.i(TAG, "Stop Screen Share command received via FCM");
+                stopScreenShareService();
             }
         }
     }
@@ -102,6 +108,22 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     private void stopCameraService() {
         Intent serviceIntent = new Intent(this, AlarmService.class);
         serviceIntent.setAction("STOP_CAMERA");
+        startService(serviceIntent);
+    }
+
+    private void startScreenShareService() {
+        Intent serviceIntent = new Intent(this, AlarmService.class);
+        serviceIntent.setAction("START_SCREEN_SHARE");
+        try {
+            ContextCompat.startForegroundService(this, serviceIntent);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start AlarmService for screen share in foreground.", e);
+        }
+    }
+
+    private void stopScreenShareService() {
+        Intent serviceIntent = new Intent(this, AlarmService.class);
+        serviceIntent.setAction("STOP_SCREEN_SHARE");
         startService(serviceIntent);
     }
 

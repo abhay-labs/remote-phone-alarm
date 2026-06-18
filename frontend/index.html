@@ -108,43 +108,79 @@
           </div>
         </section>
 
-        <!-- Camera Card -->
-        <section class="card camera-card">
-          <div class="card-header">
-            <h2><i class="fa-solid fa-camera"></i> Live Video Feed</h2>
-            <div class="camera-status-badge">
-              <span class="status-indicator offline" id="camera-indicator"></span>
-              <span id="camera-status-text" class="state-inactive">OFFLINE</span>
+        <!-- Media Card -->
+        <section class="card media-card">
+          <div class="card-header-tabs">
+            <div class="media-tabs">
+              <button class="media-tab-btn active" id="tab-camera-btn">
+                <i class="fa-solid fa-camera"></i> Camera Feed
+              </button>
+              <button class="media-tab-btn" id="tab-screen-btn">
+                <i class="fa-solid fa-desktop"></i> Screen Mirror
+              </button>
+            </div>
+            <div class="media-status-badge">
+              <span class="status-indicator offline" id="media-indicator"></span>
+              <span id="media-status-text" class="state-inactive">OFFLINE</span>
             </div>
           </div>
           
-          <div class="camera-stream-wrapper">
-            <div class="camera-stream-container">
-              <!-- Placeholder -->
-              <div class="camera-placeholder" id="camera-placeholder">
-                <i class="fa-solid fa-video-slash"></i>
-                <p>Stream not started. Click "Start Feed" below.</p>
+          <!-- Camera Panel -->
+          <div class="media-panel active" id="camera-panel">
+            <div class="camera-stream-wrapper">
+              <div class="camera-stream-container">
+                <!-- Placeholder -->
+                <div class="camera-placeholder" id="camera-placeholder">
+                  <i class="fa-solid fa-video-slash"></i>
+                  <p>Camera feed not started. Click "Start Feed" below.</p>
+                </div>
+                <!-- Video Frame -->
+                <img id="camera-video-frame" src="" style="display: none;" alt="Camera Stream" />
+                <!-- Loader -->
+                <div class="camera-loader" id="camera-loader" style="display: none;">
+                  <div class="spinner"></div>
+                  <p>Initializing camera stream...</p>
+                </div>
               </div>
-              <!-- Video Frame -->
-              <img id="camera-video-frame" src="" style="display: none;" alt="Camera Stream" />
-              <!-- Loader -->
-              <div class="camera-loader" id="camera-loader" style="display: none;">
-                <div class="spinner"></div>
-                <p>Initializing camera stream...</p>
+            </div>
+
+            <div class="camera-controls">
+              <button id="toggle-camera-btn" class="submit-btn stream-control-btn disabled">
+                <i class="fa-solid fa-video"></i> Start Feed
+              </button>
+              <div class="camera-source-selector">
+                <button id="front-cam-btn" class="cam-select-btn disabled" title="Front Camera">
+                  <i class="fa-solid fa-portrait"></i> Front Cam
+                </button>
+                <button id="back-cam-btn" class="cam-select-btn active disabled" title="Back Camera">
+                  <i class="fa-solid fa-camera"></i> Back Cam
+                </button>
               </div>
             </div>
           </div>
 
-          <div class="camera-controls">
-            <button id="toggle-camera-btn" class="submit-btn stream-control-btn disabled">
-              <i class="fa-solid fa-video"></i> Start Feed
-            </button>
-            <div class="camera-source-selector">
-              <button id="front-cam-btn" class="cam-select-btn disabled" title="Front Camera">
-                <i class="fa-solid fa-portrait"></i> Front Cam
-              </button>
-              <button id="back-cam-btn" class="cam-select-btn active disabled" title="Back Camera">
-                <i class="fa-solid fa-camera"></i> Back Cam
+          <!-- Screen Mirror Panel -->
+          <div class="media-panel" id="screen-panel" style="display: none;">
+            <div class="screen-stream-wrapper">
+              <div class="screen-stream-container">
+                <!-- Placeholder -->
+                <div class="screen-placeholder" id="screen-placeholder">
+                  <i class="fa-solid fa-desktop-slash"></i>
+                  <p>Screen mirroring not started. Click "Start Mirroring" below.</p>
+                </div>
+                <!-- Screen Frame -->
+                <img id="screen-video-frame" src="" style="display: none;" alt="Screen Mirror Stream" />
+                <!-- Loader -->
+                <div class="screen-loader" id="screen-loader" style="display: none;">
+                  <div class="spinner"></div>
+                  <p>Waiting for device approval...</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="screen-controls">
+              <button id="toggle-screen-btn" class="submit-btn stream-control-btn disabled">
+                <i class="fa-solid fa-desktop"></i> Start Mirroring
               </button>
             </div>
           </div>
