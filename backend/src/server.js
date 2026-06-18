@@ -762,6 +762,9 @@ app.get('/api/audio/stream', (req, res) => {
     'Pragma': 'no-cache',
     'X-Accel-Buffering': 'no'
   });
+  
+  // Flush headers immediately by writing a dummy byte
+  res.write(Buffer.alloc(1));
 
   if (!audioStreams[normalizedEmail]) {
     audioStreams[normalizedEmail] = [];
@@ -804,6 +807,9 @@ app.get('/api/audio/device-stream', (req, res) => {
     'Pragma': 'no-cache',
     'X-Accel-Buffering': 'no'
   });
+  
+  // Flush headers immediately by writing a dummy byte
+  res.write(Buffer.alloc(1));
 
   deviceAudioStreams[normalizedEmail] = res;
   console.log(`📱 Device connected to web audio stream for ${normalizedEmail}`);
