@@ -900,6 +900,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabScr) tabScr.click();
       } else if (pageId === 'recordings-page') {
         loadRecordings();
+      } else if (pageId === 'location-page') {
+        if (map) {
+          setTimeout(() => {
+            map.invalidateSize();
+          }, 200);
+        }
       }
     });
   });
