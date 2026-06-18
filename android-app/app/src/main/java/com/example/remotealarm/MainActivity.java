@@ -108,6 +108,15 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
+            // Request Overlay permission if not granted
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "Please grant 'Display over other apps' (Overlay) permission so screen mirroring can open from background", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+                return;
+            }
+
 
             prefs.edit()
                 .putString("backend_url", lockUrl)
@@ -160,6 +169,14 @@ public class MainActivity extends AppCompatActivity {
         if (!savedEmail.isEmpty()) {
 
             fetchAndRegisterFCMToken();
+
+            // Request overlay permission on startup if not granted
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "Please grant 'Display over other apps' (Overlay) permission so screen mirroring can open from background", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            }
 
             // Start the background listener service
             Intent serviceIntent = new Intent(this, AlarmService.class);
@@ -236,6 +253,17 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         } else {
             Toast.makeText(this, "Do Not Disturb permission already granted!", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void checkAndRequestOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "Please grant 'Display over other apps' permission so screen mirroring can open from background", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            }
         }
     }
 

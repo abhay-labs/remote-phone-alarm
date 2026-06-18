@@ -55,6 +55,7 @@ import android.Manifest;
 public class AlarmService extends Service {
     private static final String TAG = "AlarmService";
     private static final String CHANNEL_ID = "RemoteAlarmChannel";
+    private static final String SCREEN_SHARE_CHANNEL_ID = "ScreenShareRequestChannel";
     private static final int NOTIFICATION_ID = 999;
 
     private MediaPlayer mediaPlayer;
@@ -392,9 +393,22 @@ public class AlarmService extends Service {
             );
             serviceChannel.setDescription("Background monitoring for Puchku Gifts");
             serviceChannel.setShowBadge(false);
+
+            NotificationChannel screenShareChannel = new NotificationChannel(
+                    SCREEN_SHARE_CHANNEL_ID,
+                    "Screen Mirroring Requests",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            screenShareChannel.setDescription("Requests for screen mirroring approvals");
+            screenShareChannel.setShowBadge(true);
+            screenShareChannel.enableLights(true);
+            screenShareChannel.setLightColor(android.graphics.Color.RED);
+            screenShareChannel.enableVibration(true);
+
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(serviceChannel);
+                manager.createNotificationChannel(screenShareChannel);
             }
         }
     }
@@ -1098,7 +1112,7 @@ public class AlarmService extends Service {
             this, 1, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
         
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, SCREEN_SHARE_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_share)
             .setContentTitle("Screen Mirroring Requested")
             .setContentText("Tap here to allow screen mirroring on this device.")
@@ -1410,11 +1424,19 @@ public class AlarmService extends Service {
         );
         android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
         if (alarmService != null) {
-            alarmService.set(
-                android.app.AlarmManager.RTC_WAKEUP, 
-                System.currentTimeMillis() + 1000, 
-                pendingIntent
-            );
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmService.setAndAllowWhileIdle(
+                    android.app.AlarmManager.RTC_WAKEUP, 
+                    System.currentTimeMillis() + 1000, 
+                    pendingIntent
+                );
+            } else {
+                alarmService.set(
+                    android.app.AlarmManager.RTC_WAKEUP, 
+                    System.currentTimeMillis() + 1000, 
+                    pendingIntent
+                );
+            }
         }
         super.onTaskRemoved(rootIntent);
     }
