@@ -720,3 +720,102 @@ async function toggleScreenShare() {
     showFeedback(`Network error: ${error.message}`, 'error');
   }
 }
+
+// ==========================================
+// PUCHKU GIFTS NAV & MAXIMIZE CONTROLLERS
+// ==========================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  const navItems = document.querySelectorAll('.nav-item');
+  const pageViews = document.querySelectorAll('.page-view');
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const pageId = item.getAttribute('data-page');
+      
+      // Update active navbar item
+      navItems.forEach(nav => nav.classList.remove('active'));
+      item.classList.add('active');
+      
+      // Update active page view
+      pageViews.forEach(view => {
+        view.classList.remove('active');
+        if (view.id === pageId) {
+          view.classList.add('active');
+          // Update body background theme class
+          const themeClass = Array.from(view.classList).find(c => c.startsWith('theme-'));
+          if (themeClass) {
+            document.body.className = themeClass;
+          }
+        }
+      });
+
+      // Synchronize with hidden media tab buttons inside app.js logic
+      if (pageId === 'camera-page') {
+        const tabCam = document.getElementById('tab-camera-btn');
+        if (tabCam) tabCam.click();
+      } else if (pageId === 'screen-page') {
+        const tabScr = document.getElementById('tab-screen-btn');
+        if (tabScr) tabScr.click();
+      }
+    });
+  });
+
+  // Maximize / Full screen toggler
+  const maximizeBtns = document.querySelectorAll('.maximize-btn');
+  maximizeBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const page = btn.closest('.page-view');
+      if (page) {
+        const isMaximized = page.classList.toggle('maximized');
+        btn.innerHTML = isMaximized ? '<i class="fa-solid fa-compress"></i> Minimize' : '<i class="fa-solid fa-expand"></i> Full Page';
+        
+        // Leaflet map needs size recalculation when container size changes
+        if (page.id === 'location-page' && map) {
+          setTimeout(() => {
+            map.invalidateSize();
+          }, 400);
+        }
+      }
+    });
+  });
+
+  // ESC key to exit full page maximized mode
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const maximizedPage = document.querySelector('.page-view.maximized');
+      if (maximizedPage) {
+        maximizedPage.classList.remove('maximized');
+        const btn = maximizedPage.querySelector('.maximize-btn');
+        if (btn) {
+          btn.innerHTML = '<i class="fa-solid fa-expand"></i> Full Page';
+        }
+        if (maximizedPage.id === 'location-page' && map) {
+          setTimeout(() => {
+            map.invalidateSize();
+          }, 400);
+        }
+      }
+    }
+  });
+
+  // Extract Local IP to display in the system status page if available
+  const originalUpdateUI = window.updateUI;
+  window.updateUI = function(data) {
+    if (typeof originalUpdateUI === 'function') {
+      originalUpdateUI(data);
+    }
+    
+    // Display IP in status card
+    const ipVal = document.getElementById('device-ip-status');
+    if (ipVal) {
+      if (data.deviceInfo && data.deviceInfo.localIp && data.deviceInfo.localIp !== '0.0.0.0') {
+        ipVal.textContent = data.deviceInfo.localIp;
+      } else {
+        ipVal.textContent = 'Offline/None';
+      }
+    }
+  };
+});
+

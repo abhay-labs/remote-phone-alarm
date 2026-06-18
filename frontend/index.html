@@ -3,60 +3,148 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Remote Phone Alarm Dashboard</title>
+  <title>Puchku Gifts - Control Panel 🎁</title>
   
   <!-- Modern Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Leaflet Map CSS for Interactive GPS Map -->
+  <!-- Leaflet Map CSS for GPS Tracker -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   
-  <!-- FontAwesome for Premium Icons -->
+  <!-- FontAwesome for Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- Custom Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="theme-white">
   <div class="glow-bg"></div>
-  <div class="glow-bg-secondary"></div>
   
-  <div class="app-container">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="logo-area">
-        <div class="logo-icon"><i class="fa-solid fa-bell-slash"></i></div>
-        <div>
-          <h1>GuardianLink</h1>
-          <p class="subtitle">Remote Phone Alarm Trigger System</p>
+  <!-- Sidebar Navigation -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-icon-box"><i class="fa-solid fa-gift"></i></div>
+      <div>
+        <h2>Puchku Gifts</h2>
+        <p>Control Panel 🎀</p>
+      </div>
+    </div>
+    
+    <ul class="nav-links">
+      <li class="nav-item active" data-page="status-page">
+        <i class="fa-solid fa-square-poll-horizontal"></i> Status &amp; Info
+      </li>
+      <li class="nav-item" data-page="alarm-page">
+        <i class="fa-solid fa-bell"></i> Siren Control
+      </li>
+      <li class="nav-item" data-page="camera-page">
+        <i class="fa-solid fa-camera"></i> Live Camera
+      </li>
+      <li class="nav-item" data-page="screen-page">
+        <i class="fa-solid fa-desktop"></i> Screen Mirror
+      </li>
+      <li class="nav-item" data-page="location-page">
+        <i class="fa-solid fa-location-dot"></i> GPS Tracker
+      </li>
+    </ul>
+    
+    <div class="sidebar-footer">
+      <div class="connection-status">
+        <span class="status-dot offline" id="server-indicator"></span>
+        <span class="connection-text" id="server-status-text">Connecting...</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Panel -->
+  <main class="main-content">
+    
+    <!-- Page 1: Status & Info (Theme: White/Slate) -->
+    <section id="status-page" class="page-view active theme-white">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-circle-info"></i> System Status &amp; Settings</h1>
+          <p>Inspect device configuration, server link status, and active token details.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn" id="open-settings-btn"><i class="fa-solid fa-gear"></i> Settings</button>
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
         </div>
       </div>
       
-      <div class="status-controls">
-        <div class="server-badge" id="server-status-badge">
-          <span class="status-indicator offline" id="server-indicator"></span>
-          <span id="server-status-text">Connecting Server...</span>
+      <div class="card-grid">
+        <!-- Device Info Card -->
+        <div class="card">
+          <div class="card-title-bar">
+            <h3><i class="fa-solid fa-mobile-screen-button"></i> Linked Device</h3>
+            <span class="card-title-badge" id="firebase-status-badge">Checking...</span>
+          </div>
+          
+          <div class="status-grid" style="grid-template-columns: 1fr; gap: 15px;">
+            <div class="status-card-stat">
+              <span class="stat-label">Device Model</span>
+              <span class="stat-value" id="device-model">-</span>
+            </div>
+            <div class="status-card-stat">
+              <span class="stat-label">Android Version</span>
+              <span class="stat-value" id="device-sdk">-</span>
+            </div>
+            <div class="status-card-stat">
+              <span class="stat-label">Linked Email</span>
+              <span class="stat-value" id="device-email">Not configured</span>
+            </div>
+            <div class="status-card-stat">
+              <span class="stat-label">Last Device Ping</span>
+              <span class="stat-value" id="device-last-update">-</span>
+            </div>
+          </div>
         </div>
-        
-        <button id="open-settings-btn" class="icon-btn" title="API Settings">
-          <i class="fa-solid fa-gear"></i>
-        </button>
-      </div>
-    </header>
 
-    <!-- Main Dashboard Grid -->
-    <main class="dashboard-grid">
-      <!-- Left Column: Controls & Alarm Activation -->
-      <section class="card control-card">
-        <div class="card-header">
-          <h2><i class="fa-solid fa-bolt"></i> Remote Control</h2>
-          <span class="badge" id="firebase-status-badge">Firebase Mock</span>
+        <!-- Connection Diagnostics Card -->
+        <div class="card">
+          <div class="card-title-bar">
+            <h3><i class="fa-solid fa-circle-nodes"></i> Active Channels</h3>
+          </div>
+          
+          <div class="status-grid" style="grid-template-columns: 1fr; gap: 15px;">
+            <div class="status-card-stat">
+              <span class="stat-label">Siren State</span>
+              <span class="stat-value" id="alarm-state-text">INACTIVE</span>
+            </div>
+            <div class="status-card-stat">
+              <span class="stat-label">Media Stream</span>
+              <span class="stat-value" id="media-status-text">OFFLINE</span>
+            </div>
+            <div class="status-card-stat">
+              <span class="stat-label">Wi-Fi IP Address</span>
+              <span class="stat-value" id="device-ip-status">Not connected</span>
+            </div>
+          </div>
         </div>
-        
-        <div class="trigger-panel">
-          <!-- Big Ring Button -->
+      </div>
+    </section>
+
+    <!-- Page 2: Siren & Alarm Activation (Theme: Red) -->
+    <section id="alarm-page" class="page-view theme-red">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-bell"></i> Siren Activation</h1>
+          <p>Trigger a loud security siren on the device or play a custom alert sound.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
+        </div>
+      </div>
+      
+      <div class="card-grid" style="grid-template-columns: 1fr 1.2fr;">
+        <!-- Ring Panel -->
+        <div class="card" style="text-align: center;">
+          <div class="card-title-bar">
+            <h3><i class="fa-solid fa-triangle-exclamation"></i> Siren Controller</h3>
+          </div>
+          
           <div class="trigger-ring-container">
             <button id="ring-btn" class="ring-button disabled">
               <div class="pulse-ring"></div>
@@ -65,155 +153,177 @@
               <span class="btn-label">START SIREN</span>
             </button>
           </div>
-
-          <!-- Active Alarm State / Stop Button -->
-          <div class="alarm-state-container" id="alarm-state-display">
-            <p class="state-label">Current State: <span id="alarm-state-text" class="state-inactive">INACTIVE</span></p>
+          
+          <div class="alarm-controls-box">
             <button id="stop-btn" class="stop-button disabled" disabled>
               <i class="fa-solid fa-stop"></i> Stop Siren
             </button>
           </div>
         </div>
 
-        <div class="card-footer">
-          <p id="action-status-msg" class="status-msg">Please configure your server URL and token first.</p>
+        <!-- sound options -->
+        <div class="card">
+          <div class="card-title-bar">
+            <h3><i class="fa-solid fa-sliders"></i> Action Status &amp; Logs</h3>
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 20px; min-height: 200px;">
+            <div style="background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.2); padding: 18px; border-radius: 14px;">
+              <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 6px; color: #FCA5A5;">System Log Status:</h4>
+              <p id="action-status-msg" class="status-msg" style="background: transparent; padding: 0;">Please configure settings.</p>
+            </div>
+            
+            <div style="font-size: 13px; color: #FECDD3; line-height: 1.5;">
+              <p><strong>Note:</strong> Siren triggers will flash the device's camera light and override DND settings to play at maximum volume.</p>
+            </div>
+          </div>
         </div>
-      </section>
-
-      <!-- Right Column: Device Information & Location Map -->
-      <div class="right-column-grid">
-        <!-- Device Info Card -->
-        <section class="card info-card">
-          <div class="card-header">
-            <h2><i class="fa-solid fa-mobile-screen-button"></i> Device Status</h2>
-          </div>
-          
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="info-label">Device Name</span>
-              <span class="info-value" id="device-model">-</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Android SDK</span>
-              <span class="info-value" id="device-sdk">-</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Linked Email</span>
-              <span class="info-value" id="device-email">Not configured</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Last Ping</span>
-              <span class="info-value" id="device-last-update">-</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- Media Card -->
-        <section class="card media-card">
-          <div class="card-header-tabs">
-            <div class="media-tabs">
-              <button class="media-tab-btn active" id="tab-camera-btn">
-                <i class="fa-solid fa-camera"></i> Camera Feed
-              </button>
-              <button class="media-tab-btn" id="tab-screen-btn">
-                <i class="fa-solid fa-desktop"></i> Screen Mirror
-              </button>
-            </div>
-            <div class="media-status-badge">
-              <span class="status-indicator offline" id="media-indicator"></span>
-              <span id="media-status-text" class="state-inactive">OFFLINE</span>
-            </div>
-          </div>
-          
-          <!-- Camera Panel -->
-          <div class="media-panel active" id="camera-panel">
-            <div class="camera-stream-wrapper">
-              <div class="camera-stream-container">
-                <!-- Placeholder -->
-                <div class="camera-placeholder" id="camera-placeholder">
-                  <i class="fa-solid fa-video-slash"></i>
-                  <p>Camera feed not started. Click "Start Feed" below.</p>
-                </div>
-                <!-- Video Frame -->
-                <img id="camera-video-frame" src="" style="display: none;" alt="Camera Stream" />
-                <!-- Loader -->
-                <div class="camera-loader" id="camera-loader" style="display: none;">
-                  <div class="spinner"></div>
-                  <p>Initializing camera stream...</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="camera-controls">
-              <button id="toggle-camera-btn" class="submit-btn stream-control-btn disabled">
-                <i class="fa-solid fa-video"></i> Start Feed
-              </button>
-              <div class="camera-source-selector">
-                <button id="front-cam-btn" class="cam-select-btn disabled" title="Front Camera">
-                  <i class="fa-solid fa-portrait"></i> Front Cam
-                </button>
-                <button id="back-cam-btn" class="cam-select-btn active disabled" title="Back Camera">
-                  <i class="fa-solid fa-camera"></i> Back Cam
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Screen Mirror Panel -->
-          <div class="media-panel" id="screen-panel" style="display: none;">
-            <div class="screen-stream-wrapper">
-              <div class="screen-stream-container">
-                <!-- Placeholder -->
-                <div class="screen-placeholder" id="screen-placeholder">
-                  <i class="fa-solid fa-desktop-slash"></i>
-                  <p>Screen mirroring not started. Click "Start Mirroring" below.</p>
-                </div>
-                <!-- Screen Frame -->
-                <img id="screen-video-frame" src="" style="display: none;" alt="Screen Mirror Stream" />
-                <!-- Loader -->
-                <div class="screen-loader" id="screen-loader" style="display: none;">
-                  <div class="spinner"></div>
-                  <p>Waiting for device approval...</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="screen-controls">
-              <button id="toggle-screen-btn" class="submit-btn stream-control-btn disabled">
-                <i class="fa-solid fa-desktop"></i> Start Mirroring
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Location Card -->
-        <section class="card map-card">
-          <div class="card-header">
-            <h2><i class="fa-solid fa-location-dot"></i> Live Tracking</h2>
-            <span class="gps-accuracy" id="gps-accuracy-badge">-</span>
-          </div>
-          
-          <div class="map-container-wrapper">
-            <div id="map">
-              <div class="map-placeholder">
-                <i class="fa-solid fa-map-location-dot"></i>
-                <p>Waiting for GPS coordinates from device...</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="map-footer">
-            <div class="location-details">
-              <span><i class="fa-solid fa-compass"></i> Lat: <strong id="lat-val">-</strong>, Lng: <strong id="lng-val">-</strong></span>
-            </div>
-            <a href="#" target="_blank" id="google-maps-btn" class="text-link disabled"><i class="fa-solid fa-external-link"></i> Open in Maps</a>
-          </div>
-        </section>
       </div>
-    </main>
+    </section>
+
+    <!-- Page 3: Live Camera View (Theme: Pink) -->
+    <section id="camera-page" class="page-view theme-pink">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-camera"></i> Live Camera Feed</h1>
+          <p>Stream real-time video from the phone's front or back camera.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
+        </div>
+      </div>
+      
+      <!-- Camera Panel (kept same ID for app.js) -->
+      <div class="media-container-outer" id="camera-panel">
+        <div class="card">
+          <div class="media-viewport">
+            <!-- Placeholder -->
+            <div class="viewport-placeholder" id="camera-placeholder">
+              <i class="fa-solid fa-video-slash"></i>
+              <p>Camera feed not started. Click "Start Feed" below. 💖</p>
+            </div>
+            <!-- Video Frame -->
+            <img id="camera-video-frame" src="" style="display: none;" alt="Camera Stream" />
+            <!-- Loader -->
+            <div class="viewport-loader" id="camera-loader" style="display: none;">
+              <div class="spinner"></div>
+              <p>Connecting to camera feed...</p>
+            </div>
+          </div>
+
+          <div class="media-controls-panel">
+            <button id="toggle-camera-btn" class="submit-btn disabled" style="width: 100%;">
+              <i class="fa-solid fa-video"></i> Start Feed
+            </button>
+            
+            <div class="camera-source-selector">
+              <button id="front-cam-btn" class="cam-select-btn disabled" title="Front Camera">
+                <i class="fa-solid fa-portrait"></i> Front Cam 💖
+              </button>
+              <button id="back-cam-btn" class="cam-select-btn active disabled" title="Back Camera">
+                <i class="fa-solid fa-camera"></i> Back Cam 💖
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Page 4: Screen Mirroring (Theme: Pink) -->
+    <section id="screen-page" class="page-view theme-pink">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-desktop"></i> Screen Mirroring</h1>
+          <p>View your phone screen in real-time inside a portrait device mockup.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
+        </div>
+      </div>
+
+      <!-- Screen Panel (kept same ID for app.js) -->
+      <div class="media-container-outer" id="screen-panel">
+        <div class="card">
+          
+          <div class="screen-viewport-portrait">
+            <!-- Phone Bezel mockups -->
+            <div class="phone-speaker-camera">
+              <div class="phone-lens"></div>
+              <div class="phone-speaker"></div>
+            </div>
+            
+            <!-- Placeholder -->
+            <div class="viewport-placeholder" id="screen-placeholder">
+              <i class="fa-solid fa-desktop-slash"></i>
+              <p>Screen mirroring inactive. Click "Start Mirroring" below. 🎁</p>
+            </div>
+            <!-- Screen Frame -->
+            <img id="screen-video-frame" src="" style="display: none;" alt="Screen Mirror Stream" />
+            <!-- Loader -->
+            <div class="viewport-loader" id="screen-loader" style="display: none;">
+              <div class="spinner"></div>
+              <p>Waiting for device approval... ⏳</p>
+            </div>
+          </div>
+
+          <div class="media-controls-panel" style="margin-top: 35px;">
+            <button id="toggle-screen-btn" class="submit-btn disabled" style="width: 100%;">
+              <i class="fa-solid fa-desktop"></i> Start Mirroring
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Page 5: GPS Location Live Tracking (Theme: Violet) -->
+    <section id="location-page" class="page-view theme-violet">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-location-dot"></i> GPS Live Tracking</h1>
+          <p>Locate the device in real-time on an interactive dark Leaflet map.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
+        </div>
+      </div>
+      
+      <div class="card" style="padding: 24px;">
+        <div class="card-title-bar">
+          <h3><i class="fa-solid fa-map-location-dot"></i> Interactive Tracker Map</h3>
+          <span class="card-title-badge" id="gps-accuracy-badge">-</span>
+        </div>
+        
+        <div class="map-view-wrapper">
+          <div id="map">
+            <div class="map-placeholder">
+              <i class="fa-solid fa-map-location-dot"></i>
+              <p>Waiting for GPS coordinates from device...</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="location-coordinates-bar">
+          <div class="coordinates-text">
+            <i class="fa-solid fa-compass"></i> Latitude: <strong id="lat-val">-</strong>, Longitude: <strong id="lng-val">-</strong>
+          </div>
+          <a href="#" target="_blank" id="google-maps-btn" class="text-link disabled">
+            <i class="fa-solid fa-external-link"></i> Open Google Maps
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Hidden Tab Buttons required by existing app.js to function -->
+  <div style="display: none;">
+    <button id="tab-camera-btn" class="active"></button>
+    <button id="tab-screen-btn"></button>
+    <span id="media-indicator"></span>
+    <span id="media-status-text"></span>
   </div>
 
-  <!-- Settings Modal -->
+  <!-- Settings Configuration Modal -->
   <div class="modal" id="settings-modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -223,8 +333,8 @@
       <div class="modal-body">
         <form id="settings-form">
           <div class="form-group">
-            <label for="sound-select" class="sound-label"><i class="fa-solid fa-music"></i> Choose Alarm Sound</label>
-            <select id="sound-select" class="sound-dropdown">
+            <label for="sound-select"><i class="fa-solid fa-music"></i> Choose Alarm Sound</label>
+            <select id="sound-select">
               <option value="default">Default Alarm Sound 🚨</option>
               <option value="spaceship">Spaceship Alarm 🚀</option>
               <option value="digital">Digital Alarm 🔊</option>
@@ -235,30 +345,30 @@
           </div>
 
           <div class="form-group" id="custom-file-group" style="display: none; margin-top: 10px;">
-            <label for="custom-sound-file" class="sound-label"><i class="fa-solid fa-file-audio"></i> Upload Custom Audio (.mp3, .ogg, .wav)</label>
+            <label for="custom-sound-file"><i class="fa-solid fa-file-audio"></i> Upload Custom Audio (.mp3, .ogg, .wav)</label>
             <input type="file" id="custom-sound-file" accept="audio/*">
-            <small id="upload-status" style="color: var(--text-muted); margin-top: 4px; display: block;"></small>
+            <small id="upload-status"></small>
           </div>
 
           <div class="form-group">
             <label for="server-url-input">Server API URL</label>
-            <input type="url" id="server-url-input" placeholder="e.g. http://localhost:3000" required>
-            <small>If running locally, keep it as: <code>http://localhost:3000</code></small>
+            <input type="url" id="server-url-input" placeholder="e.g. https://remote-phone-alarm.onrender.com" required>
+            <small>Backend server base URL. Use <code>https://remote-phone-alarm.onrender.com</code>.</small>
           </div>
           
           <div class="form-group">
             <label for="admin-token-input">Admin Security Token</label>
             <input type="password" id="admin-token-input" placeholder="Enter security token" required>
-            <small>Matches <code>ADMIN_TOKEN</code> configured on the server.</small>
+            <small>Admin authentication bearer token.</small>
           </div>
           
           <div class="form-group">
             <label for="admin-email-input">Target Email Address</label>
-            <input type="email" id="admin-email-input" placeholder="e.g. user@example.com" required>
-            <small>Controls the phone registered under this email.</small>
+            <input type="email" id="admin-email-input" placeholder="e.g. princess@example.com" required>
+            <small>The email address registered in the Puchku Gifts app.</small>
           </div>
           
-          <button type="submit" class="submit-btn">Save Configurations</button>
+          <button type="submit" class="submit-btn" style="width: 100%; margin-top: 10px;">Save Configurations</button>
         </form>
       </div>
     </div>
