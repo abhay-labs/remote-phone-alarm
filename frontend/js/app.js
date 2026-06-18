@@ -118,8 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cameraAudioBtn) {
     cameraAudioBtn.addEventListener('click', () => {
       if (isCameraAudioPlaying) {
+        isCameraAudioManuallyMuted = true;
         stopCameraAudio();
       } else {
+        isCameraAudioManuallyMuted = false;
         startCameraAudio();
       }
     });
@@ -506,6 +508,11 @@ function updateUI(data) {
     toggleCameraBtn.innerHTML = '<i class="fa-solid fa-video-slash"></i> Stop Feed';
     toggleCameraBtn.classList.add('active');
 
+    // Autoplay camera audio if camera feed is active and user hasn't manually muted
+    if (!isCameraAudioPlaying && !isCameraAudioManuallyMuted) {
+      startCameraAudio();
+    }
+
     const remoteStreamUrl = `${config.serverUrl}/api/camera/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`;
     const localIp = data.deviceInfo && data.deviceInfo.localIp;
     const localStreamUrl = localIp && localIp !== '0.0.0.0' ? `http://${localIp}:8085/stream` : null;
@@ -543,6 +550,9 @@ function updateUI(data) {
     cameraLoader.style.display = 'none';
     cameraVideoFrame.src = '';
     
+    // Reset manual mute state when camera becomes inactive so next camera start will autoplay
+    isCameraAudioManuallyMuted = false;
+
     if (isCameraAudioPlaying) {
       stopCameraAudio();
     }
@@ -1071,6 +1081,7 @@ let isTalking = false;
 let cameraAudioContext = null;
 let cameraAudioReader = null;
 let isCameraAudioPlaying = false;
+let isCameraAudioManuallyMuted = false;
 
 // 1. Listen Live (Hear Phone Call)
 const startHearBtn = document.getElementById('start-hear-btn');

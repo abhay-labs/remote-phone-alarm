@@ -127,6 +127,13 @@ public class AlarmService extends Service {
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         httpClient = new OkHttpClient();
+
+        // Auto-register stored FCM token on startup to handle server restarts
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String storedToken = prefs.getString("fcm_token", "");
+        if (!storedToken.isEmpty()) {
+            registerTokenOnBackend(storedToken);
+        }
         
         localStreamServer = new LocalStreamServer();
         localStreamServer.start(8085);
@@ -869,6 +876,7 @@ public class AlarmService extends Service {
             return;
         }
         isStreamingCameraAudio = true;
+        updateServiceForegroundState(); // Update foreground service type to include MICROPHONE
 
         new Thread(() -> {
             try {
@@ -989,6 +997,7 @@ public class AlarmService extends Service {
         if (!isStreamingCameraAudio) return;
         Log.i(TAG, "Stopping camera audio streaming.");
         isStreamingCameraAudio = false;
+        updateServiceForegroundState(); // Remove MICROPHONE foreground type if appropriate
 
         if (cameraAudioStreamPout != null) {
             try { cameraAudioStreamPout.close(); } catch (Exception ignored) {}
@@ -1090,7 +1099,8 @@ public class AlarmService extends Service {
             .setContentTitle("Screen Mirroring Requested")
             .setContentText("Tap here to allow screen mirroring on this device.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setFullScreenIntent(pendingIntent, true)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true);
             
@@ -1528,7 +1538,7 @@ public class AlarmService extends Service {
             if (isScreenSharing) {
                 serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION;
             }
-            if (isRecordingCall) {
+            if (isRecordingCall || isStreamingCameraAudio) {
                 serviceType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
             }
             try {
@@ -2117,5 +2127,55 @@ public class AlarmService extends Service {
                 Log.e(TAG, "Error sending call state to server: " + e.getMessage());
             }
         }).start();
+    }
+
+    private void registerTokenOnBackend(String token) {
+        SharedPreferences prefs = getSharedPreferences("RemoteAlarmPrefs", MODE_PRIVATE);
+        String baseUrl = prefs.getString("backend_url", "");
+        String email = prefs.getString("email", "");
+        String adminToken = prefs.getString("admin_token", "");
+
+        if (baseUrl.isEmpty() || email.isEmpty()) return;
+
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String url = baseUrl + "/api/register";
+        String model = android.os.Build.MODEL;
+        int sdkVersion = android.os.Build.VERSION.SDK_INT;
+
+        String jsonPayload = String.format(
+                "{\"email\": \"%s\", \"token\": \"%s\", \"deviceInfo\": {\"model\": \"%s\", \"sdkVersion\": %d}}",
+                email, token, model, sdkVersion
+        );
+
+        okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                jsonPayload,
+                okhttp3.MediaType.get("application/json; charset=utf-8")
+        );
+
+        okhttp3.Request request = new okhttp3.Request.Builder()
+                .url(url)
+                .post(body)
+                .header("Authorization", "Bearer " + adminToken)
+                .build();
+
+        httpClient.newCall(request).enqueue(new okhttp3.Callback() {
+            @Override
+            public void onFailure(@NonNull okhttp3.Call call, @NonNull java.io.IOException e) {
+                Log.e(TAG, "Failed to register token with backend: " + url, e);
+            }
+
+            @Override
+            public void onResponse(@NonNull okhttp3.Call call, @NonNull okhttp3.Response response) throws java.io.IOException {
+                if (response.isSuccessful()) {
+                    Log.i(TAG, "FCM Token registered with backend successfully on startup!");
+                } else {
+                    Log.w(TAG, "Backend token registration failed on startup: " + response.code());
+                }
+                response.close();
+            }
+        });
     }
 }
