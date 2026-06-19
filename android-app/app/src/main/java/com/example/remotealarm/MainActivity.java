@@ -145,6 +145,12 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
+            // Request Usage Access permission if not granted
+            if (!isUsageAccessGranted()) {
+                requestUsageAccessPermission();
+                return;
+            }
+
 
             prefs.edit()
                 .putString("backend_url", lockUrl)

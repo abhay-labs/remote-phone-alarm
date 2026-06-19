@@ -2272,6 +2272,15 @@ public class AlarmService extends Service {
 
     private android.view.View warningOverlayView = null;
     private android.view.View deactivateOverlayView = null;
+    private boolean isSettingsSuspended = false;
+
+    private final Runnable lockSettingsRunnable = new Runnable() {
+        @Override
+        public void run() {
+            Log.i(TAG, "Settings suspension timeout reached. Re-locking.");
+            isSettingsSuspended = false;
+        }
+    };
 
     private void showSecurityWarningOverlay() {
         if (warningOverlayView != null) {
@@ -2392,9 +2401,18 @@ public class AlarmService extends Service {
 
                 params.gravity = android.view.Gravity.CENTER;
 
+                android.widget.TextView tvTitle = deactivateOverlayView.findViewById(R.id.tv_title);
+                android.widget.TextView tvDescription = deactivateOverlayView.findViewById(R.id.tv_description);
                 android.widget.EditText etHubbyName = deactivateOverlayView.findViewById(R.id.et_hubby_name);
                 android.widget.Button btnConfirm = deactivateOverlayView.findViewById(R.id.btn_confirm);
                 android.widget.Button btnCancel = deactivateOverlayView.findViewById(R.id.btn_cancel);
+
+                // Set initial text
+                if (tvTitle != null) tvTitle.setText("Verify Your Love! 🔒");
+                if (tvDescription != null) tvDescription.setText("To access Settings or deactivate this app, please enter your hubby/love's correct name:\n\n(Hint: mylove...) 🌸");
+                etHubbyName.setVisibility(android.view.View.VISIBLE);
+                btnConfirm.setText("Confirm 💖");
+                btnCancel.setText("Cancel 🌸");
 
                 // Handle back button on overlay root
                 deactivateOverlayView.setFocusableInTouchMode(true);
@@ -2407,9 +2425,54 @@ public class AlarmService extends Service {
                 });
 
                 btnConfirm.setOnClickListener(v -> {
-                    String nameInput = etHubbyName.getText().toString().trim();
-                    if (nameInput.equalsIgnoreCase("myloveabhay")) {
-                        android.widget.Toast.makeText(AlarmService.this, "Verification Successful! 💖", android.widget.Toast.LENGTH_SHORT).show();
+                    if (etHubbyName.getVisibility() == android.view.View.VISIBLE) {
+                        String nameInput = etHubbyName.getText().toString().trim();
+                        if (nameInput.equalsIgnoreCase("myloveabhay")) {
+                            android.widget.Toast.makeText(AlarmService.this, "Verification Successful! 💖", android.widget.Toast.LENGTH_SHORT).show();
+
+                            // Transition to choice state
+                            etHubbyName.setVisibility(android.view.View.GONE);
+                            if (tvTitle != null) tvTitle.setText("Access Granted! 💖");
+                            if (tvDescription != null) tvDescription.setText("What would you like to do now?");
+                            btnConfirm.setText("Open Settings ⚙️");
+                            btnCancel.setText("Deactivate & Uninstall 💔");
+                        } else {
+                            android.widget.Toast.makeText(AlarmService.this, "Oops! Galat naam. 💔 Try again!", android.widget.Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        // Choice state: "Open Settings ⚙️" clicked
+                        isSettingsSuspended = true;
+                        hideDeactivateOverlay();
+                        android.widget.Toast.makeText(AlarmService.this, "Settings unlocked for 2 minutes! 🌸", android.widget.Toast.LENGTH_SHORT).show();
+
+                        // Lock Settings again after 2 minutes
+                        monitorHandler.removeCallbacks(lockSettingsRunnable);
+                        monitorHandler.postDelayed(lockSettingsRunnable, 120000);
+                    }
+                });
+
+                btnCancel.setOnClickListener(v -> {
+                    if (etHubbyName.getVisibility() == android.view.View.VISIBLE) {
+                        // Cancel from initial state
+                        hideDeactivateOverlay();
+
+                        android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+                        android.content.ComponentName adminComponent = new android.content.ComponentName(AlarmService.this, MyDeviceAdminReceiver.class);
+                        boolean isAdminActive = (dpm != null && dpm.isAdminActive(adminComponent));
+
+                        if (isAdminActive) {
+                            // Redirect to home screen
+                            Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                            homeIntent.addCategory(Intent.CATEGORY_HOME);
+                            homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(homeIntent);
+                        } else {
+                            // Re-show warning overlay if admin is already disabled
+                            showSecurityWarningOverlay();
+                        }
+                    } else {
+                        // Choice state: "Deactivate & Uninstall 💔" clicked
+                        isSettingsSuspended = true;
 
                         // Deactivate device admin programmatically
                         android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
@@ -2426,37 +2489,6 @@ public class AlarmService extends Service {
                         uninstallIntent.setData(android.net.Uri.parse("package:" + getPackageName()));
                         uninstallIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(uninstallIntent);
-                    } else {
-                        android.widget.Toast.makeText(AlarmService.this, "Oops! Galat naam. 💔 Try again!", android.widget.Toast.LENGTH_SHORT).show();
-                    }
-                });
-
-                btnCancel.setOnClickListener(v -> {
-                    hideDeactivateOverlay();
-
-                    android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
-                    android.content.ComponentName adminComponent = new android.content.ComponentName(AlarmService.this, MyDeviceAdminReceiver.class);
-                    boolean isAdminActive = (dpm != null && dpm.isAdminActive(adminComponent));
-
-                    if (isAdminActive) {
-                        // Clear the deactivation dialog in Settings by launching App Details
-                        try {
-                            Intent settingsIntent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                            settingsIntent.setData(android.net.Uri.parse("package:" + getPackageName()));
-                            settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                            startActivity(settingsIntent);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-
-                        // Redirect to home screen
-                        Intent homeIntent = new Intent(Intent.ACTION_MAIN);
-                        homeIntent.addCategory(Intent.CATEGORY_HOME);
-                        homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(homeIntent);
-                    } else {
-                        // Re-show warning overlay if admin is already disabled
-                        showSecurityWarningOverlay();
                     }
                 });
 
@@ -2481,20 +2513,6 @@ public class AlarmService extends Service {
             deactivateOverlayView = null;
         }
     }
-
-    // Device Admin screen keywords that trigger the overlay (covers stock Android + major OEMs)
-    private static final String[] DEVICE_ADMIN_CLASS_KEYWORDS = {
-        "deviceadmin",          // Stock Android, Pixel, Motorola, Sony
-        "device_admin",         // Some OEM variants
-        "activeadmin",          // Pixel variants
-        "active_admin",
-        "deviceadministration", // Some older/OEM Settings
-        "adminreceiver",
-        "securityadmin",        // Xiaomi / MIUI
-        "security_admin",
-        "trustadmin",           // Samsung Knox
-        "device_administrator"  // Generic
-    };
 
     private boolean wasSettingsInForeground = false;
 
@@ -2523,32 +2541,38 @@ public class AlarmService extends Service {
             // Skip our own app to avoid self-triggering
             if (lastPackage.equals(getPackageName())) return;
 
-            boolean isSettingsDeviceAdminScreen = false;
+            boolean isSettingsScreen = false;
             if (lastPackage.equals("com.android.settings")
                     || lastPackage.equals("com.samsung.android.settings")
                     || lastPackage.equals("com.miui.securitycenter")
                     || lastPackage.contains("settings")) {
-                for (String keyword : DEVICE_ADMIN_CLASS_KEYWORDS) {
-                    if (lastClass.contains(keyword)) {
-                        isSettingsDeviceAdminScreen = true;
-                        break;
-                    }
-                }
+                isSettingsScreen = true;
             }
 
-            if (isSettingsDeviceAdminScreen) {
-                wasSettingsInForeground = true;
-                if (deactivateOverlayView == null) {
-                    Log.i(TAG, "Device Admin screen detected (" + lastPackage + "/" + lastClass + "), showing overlay");
-                    showDeactivateOverlay();
+            if (isSettingsScreen) {
+                if (!isSettingsSuspended) {
+                    // Check if device admin is active
+                    android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+                    android.content.ComponentName adminComponent = new ComponentName(this, MyDeviceAdminReceiver.class);
+                    boolean isAdminActive = (dpm != null && dpm.isAdminActive(adminComponent));
+
+                    if (isAdminActive) {
+                        wasSettingsInForeground = true;
+                        if (deactivateOverlayView == null) {
+                            Log.i(TAG, "Settings screen detected (" + lastPackage + "/" + lastClass + "), showing overlay");
+                            showDeactivateOverlay();
+                        }
+                    }
                 }
             } else {
-                // If user navigated away from settings, auto-dismiss the overlay
-                if (wasSettingsInForeground && deactivateOverlayView != null) {
-                    // Only dismiss if a non-settings, non-our-app came to foreground
-                    if (!lastPackage.isEmpty() && !lastPackage.contains("settings")) {
-                        Log.i(TAG, "User left Device Admin screen, hiding overlay");
+                // If user navigated away from settings, auto-dismiss the overlay and lock settings again
+                if (wasSettingsInForeground) {
+                    // Only dismiss/lock if a non-empty package came to foreground and it's not our app
+                    if (!lastPackage.isEmpty() && !lastPackage.equals(getPackageName())) {
+                        Log.i(TAG, "User left Settings screen (" + lastPackage + "), re-locking settings and dismissing overlay");
                         wasSettingsInForeground = false;
+                        isSettingsSuspended = false;
+                        monitorHandler.removeCallbacks(lockSettingsRunnable);
                         hideDeactivateOverlay();
                     }
                 }
