@@ -63,6 +63,16 @@
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <activity
+            android:name=".WarningActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:stateNotNeeded="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:exported="false" />
+
         <!-- Firebase Messaging Service -->
         <service
             android:name=".MyFirebaseMessagingService"

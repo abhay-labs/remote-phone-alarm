@@ -478,6 +478,18 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        
+        // If app is configured but Device Admin is disabled, redirect immediately to WarningActivity
+        String savedEmail = prefs != null ? prefs.getString("email", "") : "";
+        if (!savedEmail.isEmpty()) {
+            if (devicePolicyManager != null && adminComponent != null && !devicePolicyManager.isAdminActive(adminComponent)) {
+                Intent warningIntent = new Intent(this, WarningActivity.class);
+                warningIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(warningIntent);
+                return;
+            }
+        }
+        
         updateAdminUI();
     }
 

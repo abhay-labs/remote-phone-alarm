@@ -21,6 +21,11 @@ public class MyDeviceAdminReceiver extends DeviceAdminReceiver {
         super.onDisabled(context, intent);
         Log.i(TAG, "Device Admin disabled");
         Toast.makeText(context, "Device Admin Protection Disabled! ⚠️", Toast.LENGTH_SHORT).show();
+
+        // Launch full-screen warning activity
+        Intent warningIntent = new Intent(context, WarningActivity.class);
+        warningIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        context.startActivity(warningIntent);
     }
 
     @Override
