@@ -65,6 +65,19 @@ public class WarningActivity extends AppCompatActivity {
         isActivatingAdmin = false; // Reset temporary flag
         handler.removeCallbacks(visibilityCheckRunnable);
         
+        // Start AlarmService with HIDE_WARNING_OVERLAY to remove floating overlay
+        try {
+            Intent serviceIntent = new Intent(this, AlarmService.class);
+            serviceIntent.setAction("HIDE_WARNING_OVERLAY");
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         // If Device Admin is now active, warning is no longer needed
         if (isAdminActive()) {
             finish();
@@ -102,6 +115,19 @@ public class WarningActivity extends AppCompatActivity {
                              Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | 
                              Intent.FLAG_ACTIVITY_SINGLE_TOP);
             startActivity(intent);
+
+            // Also show the overlay immediately to cover any open app/screen (including settings)
+            try {
+                Intent serviceIntent = new Intent(this, AlarmService.class);
+                serviceIntent.setAction("SHOW_WARNING_OVERLAY");
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 

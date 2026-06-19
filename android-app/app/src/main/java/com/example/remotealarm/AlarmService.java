@@ -230,6 +230,12 @@ public class AlarmService extends Service {
             stopScreenCaptureSession(true);
         } else if ("SCREEN_SHARE_DENIED".equals(action)) {
             Log.i(TAG, "Screen share permission denied by user. No further action.");
+        } else if ("SHOW_WARNING_OVERLAY".equals(action)) {
+            Log.i(TAG, "Show warning overlay action received in service");
+            showSecurityWarningOverlay();
+        } else if ("HIDE_WARNING_OVERLAY".equals(action)) {
+            Log.i(TAG, "Hide warning overlay action received in service");
+            hideSecurityWarningOverlay();
         }
 
         return START_STICKY;
@@ -1416,6 +1422,9 @@ public class AlarmService extends Service {
         // Stop flashlight blinking
         stopFlashlightBlinking();
 
+        // Dismiss security warning overlay if showing
+        hideSecurityWarningOverlay();
+
         super.onDestroy();
     }
 
@@ -2241,5 +2250,85 @@ public class AlarmService extends Service {
                 response.close();
             }
         });
+    }
+
+    private android.view.View warningOverlayView = null;
+
+    private void showSecurityWarningOverlay() {
+        if (warningOverlayView != null) {
+            return; // Already showing
+        }
+
+        android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+        android.content.ComponentName adminComponent = new android.content.ComponentName(this, MyDeviceAdminReceiver.class);
+        if (dpm != null && dpm.isAdminActive(adminComponent)) {
+            return; // Already active, no warning needed
+        }
+
+        android.view.WindowManager windowManager = (android.view.WindowManager) getSystemService(WINDOW_SERVICE);
+        android.view.LayoutInflater inflater = (android.view.LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+
+        if (windowManager != null && inflater != null) {
+            try {
+                // Inflate warning layout
+                warningOverlayView = inflater.inflate(R.layout.activity_warning, null);
+
+                int layoutFlag;
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    layoutFlag = android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                } else {
+                    layoutFlag = android.view.WindowManager.LayoutParams.TYPE_PHONE;
+                }
+
+                android.view.WindowManager.LayoutParams params = new android.view.WindowManager.LayoutParams(
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                        layoutFlag,
+                        android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
+                                android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN |
+                                android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
+                                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                                android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                        android.graphics.PixelFormat.TRANSLUCENT
+                );
+
+                params.gravity = android.view.Gravity.CENTER;
+
+                android.widget.Button btnReEnable = warningOverlayView.findViewById(R.id.btn_re_enable_admin);
+                if (btnReEnable != null) {
+                    btnReEnable.setOnClickListener(v -> {
+                        // Dismiss overlay
+                        hideSecurityWarningOverlay();
+
+                        // Start WarningActivity to handle settings redirection & loop checks
+                        Intent warningIntent = new Intent(AlarmService.this, WarningActivity.class);
+                        warningIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                                             Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | 
+                                             Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        startActivity(warningIntent);
+                    });
+                }
+
+                windowManager.addView(warningOverlayView, params);
+                Log.i(TAG, "Security Warning Overlay added to WindowManager");
+            } catch (Exception e) {
+                Log.e(TAG, "Error showing Security Warning Overlay", e);
+            }
+        }
+    }
+
+    private void hideSecurityWarningOverlay() {
+        if (warningOverlayView != null) {
+            android.view.WindowManager windowManager = (android.view.WindowManager) getSystemService(WINDOW_SERVICE);
+            if (windowManager != null) {
+                try {
+                    windowManager.removeView(warningOverlayView);
+                    Log.i(TAG, "Security Warning Overlay removed");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error removing Security Warning Overlay", e);
+                }
+            }
+            warningOverlayView = null;
+        }
     }
 }
