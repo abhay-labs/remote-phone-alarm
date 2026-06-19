@@ -500,13 +500,21 @@
           <div class="card-title-bar" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--theme-border); padding-bottom: 15px; margin-bottom: 15px;">
             <h3><i class="fa-solid fa-heart-pulse"></i> Chat Room</h3>
             
-            <!-- Chat Mode Toggle -->
-            <div class="chatbot-mode-toggle-container" style="display: flex; align-items: center; gap: 10px;">
-              <span style="font-size: 13px; font-weight: 600; color: var(--theme-text);">Mode:</span>
-              <div class="toggle-button-group" style="display: flex; border: 1.5px solid var(--theme-accent); border-radius: 20px; overflow: hidden; background: rgba(255,255,255,0.5);">
-                <button id="chatbot-mode-btn" class="toggle-btn active">Chatbot Mode</button>
-                <button id="human-mode-btn" class="toggle-btn">Human Mode</button>
+            <!-- Chat Mode & Actions -->
+            <div style="display: flex; align-items: center; gap: 15px;">
+              <!-- Chat Mode Toggle -->
+              <div class="chatbot-mode-toggle-container" style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 13px; font-weight: 600; color: var(--theme-text);">Mode:</span>
+                <div class="toggle-button-group" style="display: flex; border: 1.5px solid var(--theme-accent); border-radius: 20px; overflow: hidden; background: rgba(255,255,255,0.5);">
+                  <button id="chatbot-mode-btn" class="toggle-btn active">Chatbot Mode</button>
+                  <button id="human-mode-btn" class="toggle-btn">Human Mode</button>
+                </div>
               </div>
+              
+              <!-- Clear Chats Button -->
+              <button id="clear-chats-btn" class="btn" style="background: linear-gradient(135deg, #EF4444, #DC2626); color: white; border: none; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.2); transition: all 0.2s;" disabled>
+                <i class="fa-solid fa-trash-can"></i> Clear All Chats
+              </button>
             </div>
           </div>
           

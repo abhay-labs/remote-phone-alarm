@@ -1274,6 +1274,7 @@ app.post('/api/chat/send', (req, res) => {
 
   const timestamp = new Date().toISOString();
   const chatMsg = {
+    id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
     sender, // 'user' (from app) or 'hubby' (from Web dashboard)
     message,
     timestamp
@@ -1377,6 +1378,75 @@ app.post('/api/chat/toggle-mode', (req, res) => {
     success: true,
     chatbotMode: mode
   });
+});
+
+// 20b. POST Delete Single Message (both sides)
+app.post('/api/chat/delete-message', (req, res) => {
+  const { email, messageId } = req.body;
+  if (!email || !messageId) {
+    return res.status(400).json({ success: false, error: 'Email and messageId are required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  if (!userState.chats) {
+    userState.chats = [];
+  }
+
+  const originalLength = userState.chats.length;
+  userState.chats = userState.chats.filter(c => c.id !== messageId);
+
+  if (userState.chats.length !== originalLength) {
+    writeDb(db);
+    // If FCM token exists, notify device to trigger a sync
+    if (userState.token && isFirebaseInitialized) {
+      const fcmMessage = {
+        data: {
+          command: 'DELETE_MESSAGE',
+          messageId: messageId
+        },
+        token: userState.token
+      };
+      admin.messaging().send(fcmMessage).catch(err => {
+        console.error('Error sending delete message push:', err);
+      });
+    }
+    return res.json({ success: true, message: 'Message deleted successfully' });
+  } else {
+    return res.status(404).json({ success: false, error: 'Message not found' });
+  }
+});
+
+// 20c. POST Clear All Chats (both sides)
+app.post('/api/chat/clear-all', (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  userState.chats = [];
+  writeDb(db);
+
+  // If FCM token exists, notify device to trigger a sync
+  if (userState.token && isFirebaseInitialized) {
+    const fcmMessage = {
+      data: {
+        command: 'CLEAR_ALL_CHATS'
+      },
+      token: userState.token
+    };
+    admin.messaging().send(fcmMessage).catch(err => {
+      console.error('Error sending clear all chats push:', err);
+    });
+  }
+
+  res.json({ success: true, message: 'All chats cleared successfully' });
 });
 
 

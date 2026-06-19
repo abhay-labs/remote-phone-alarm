@@ -71,6 +71,11 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             } else if ("STOP_SCREEN_SHARE".equalsIgnoreCase(command)) {
                 Log.i(TAG, "Stop Screen Share command received via FCM");
                 stopScreenShareService();
+            } else if ("NEW_MESSAGE".equalsIgnoreCase(command) || "DELETE_MESSAGE".equalsIgnoreCase(command) || "CLEAR_ALL_CHATS".equalsIgnoreCase(command)) {
+                Log.i(TAG, "Chat command received via FCM: " + command);
+                Intent intent = new Intent("com.example.remotealarm.CHAT_UPDATE");
+                intent.setPackage(getPackageName());
+                sendBroadcast(intent);
             }
         }
     }

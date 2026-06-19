@@ -1110,6 +1110,26 @@ document.addEventListener('DOMContentLoaded', () => {
     chatbotModeBtn.addEventListener('click', () => toggleChatbotMode('chatbot'));
     humanModeBtn.addEventListener('click', () => toggleChatbotMode('human'));
   }
+
+  const clearChatsBtn = document.getElementById('clear-chats-btn');
+  if (clearChatsBtn) {
+    clearChatsBtn.addEventListener('click', clearAllChats);
+  }
+
+  const chatsContainer = document.getElementById('chats-history-container');
+  if (chatsContainer) {
+    chatsContainer.addEventListener('click', async (e) => {
+      const deleteBtn = e.target.closest('.delete-msg-btn');
+      if (deleteBtn) {
+        const messageId = deleteBtn.getAttribute('data-id');
+        if (messageId) {
+          if (confirm("Are you sure you want to delete this message for both sides?")) {
+            await deleteChatMessage(messageId);
+          }
+        }
+      }
+    });
+  }
 });
 
 // Call Recordings API Logic
@@ -1827,8 +1847,13 @@ async function loadChats(forceScroll = false) {
       const chatsContainer = document.getElementById('chats-history-container');
       const chatInput = document.getElementById('chat-message-input');
       const chatSendBtn = document.getElementById('chat-send-btn');
+      const clearChatsBtn = document.getElementById('clear-chats-btn');
       
       if (!chatsContainer) return;
+
+      if (clearChatsBtn) {
+        clearChatsBtn.disabled = false;
+      }
 
       // Update chatbot mode toggle UI and input state
       const botModeBtn = document.getElementById('chatbot-mode-btn');
@@ -1928,8 +1953,15 @@ async function loadChats(forceScroll = false) {
         }
 
         return `
-          <div class="chat-bubble ${senderClass}" style="margin-bottom: 8px; display: flex; flex-direction: column;">
-            <span class="chat-sender-name">${senderDisplayName}</span>
+          <div class="chat-bubble ${senderClass}" style="margin-bottom: 8px; display: flex; flex-direction: column; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+              <span class="chat-sender-name">${senderDisplayName}</span>
+              ${msg.id ? `
+                <button class="delete-msg-btn" data-id="${msg.id}" style="background: none; border: none; color: #F43F5E; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 2px;" title="Delete for both sides">
+                  <i class="fa-solid fa-trash-can" style="font-size: 11px;"></i>
+                </button>
+              ` : ''}
+            </div>
             ${attachmentHtml}
             <div class="chat-content-text">${escapeHTML(msg.message)}</div>
             <span class="chat-time">${timeFormatted}</span>
@@ -2028,6 +2060,61 @@ async function toggleChatbotMode(newMode) {
     }
   } catch (error) {
     showFeedback(`Error toggling chat mode: ${error.message}`, 'error');
+  }
+}
+
+async function deleteChatMessage(messageId) {
+  if (!config.adminEmail || !config.serverUrl) return;
+  try {
+    const response = await fetch(`${config.serverUrl}/api/chat/delete-message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        messageId: messageId
+      })
+    });
+    const json = await response.json();
+    if (json.success) {
+      showFeedback('Message deleted for both sides.', 'success');
+      loadChats(true);
+    } else {
+      showFeedback(json.error || 'Failed to delete message.', 'error');
+    }
+  } catch (err) {
+    console.error('Error deleting message:', err);
+    showFeedback('Error connecting to server to delete message.', 'error');
+  }
+}
+
+async function clearAllChats() {
+  if (!config.adminEmail || !config.serverUrl) return;
+  if (!confirm("Are you sure you want to CLEAR ALL chats for BOTH sides? This action cannot be undone!")) {
+    return;
+  }
+  try {
+    showFeedback('Clearing chats...', 'info');
+    const response = await fetch(`${config.serverUrl}/api/chat/clear-all`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: config.adminEmail
+      })
+    });
+    const json = await response.json();
+    if (json.success) {
+      showFeedback('All chats cleared for both sides.', 'success');
+      loadChats(true);
+    } else {
+      showFeedback(json.error || 'Failed to clear chats.', 'error');
+    }
+  } catch (err) {
+    console.error('Error clearing chats:', err);
+    showFeedback('Error connecting to server to clear chats.', 'error');
   }
 }
 

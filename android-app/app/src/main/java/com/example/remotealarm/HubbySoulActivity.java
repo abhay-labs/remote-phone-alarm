@@ -1,5 +1,8 @@
 package com.example.remotealarm;
 
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
+import android.os.Build;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -69,6 +72,7 @@ public class HubbySoulActivity extends AppCompatActivity {
     private final Handler pollHandler = new Handler();
     private int currentMessageCount = 0;
     private String chatbotMode = "chatbot";
+    private BroadcastReceiver chatUpdateReceiver;
 
     private Uri selectedFileUri = null;
     private String selectedFileType = null; // "image", "video", "pdf"
@@ -140,6 +144,13 @@ public class HubbySoulActivity extends AppCompatActivity {
 
         // Initial Load
         loadChats(true);
+
+        chatUpdateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                loadChats(true);
+            }
+        };
     }
 
     @Override
@@ -147,6 +158,11 @@ public class HubbySoulActivity extends AppCompatActivity {
         super.onResume();
         // Start Chat Polling
         pollHandler.postDelayed(pollRunnable, 3000);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(chatUpdateReceiver, new IntentFilter("com.example.remotealarm.CHAT_UPDATE"), Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(chatUpdateReceiver, new IntentFilter("com.example.remotealarm.CHAT_UPDATE"));
+        }
     }
 
     @Override
@@ -154,6 +170,9 @@ public class HubbySoulActivity extends AppCompatActivity {
         super.onPause();
         // Stop Chat Polling to save battery and data
         pollHandler.removeCallbacks(pollRunnable);
+        try {
+            unregisterReceiver(chatUpdateReceiver);
+        } catch (Exception ignored) {}
     }
 
     private void loadChats(final boolean forceScroll) {
