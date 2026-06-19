@@ -1018,7 +1018,7 @@ public class AlarmService extends Service {
                 cameraAudioRecord.startRecording();
                 Log.i(TAG, "Camera AudioRecord started recording successfully.");
 
-                byte[] buffer = new byte[1024];
+                byte[] buffer = new byte[2048];
                 okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
                         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                         .writeTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
@@ -1885,7 +1885,7 @@ public class AlarmService extends Service {
                 activeAudioRecord.startRecording();
                 Log.i(TAG, "AudioRecord started recording.");
 
-                byte[] buffer = new byte[1024]; // small buffer for low latency
+                byte[] buffer = new byte[2048]; // small buffer for low latency
                 
                 okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
                         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
@@ -2059,7 +2059,7 @@ public class AlarmService extends Service {
                 okhttp3.Response response = client.newCall(request).execute();
                 if (response.isSuccessful() && response.body() != null) {
                     java.io.InputStream inputStream = response.body().byteStream();
-                    byte[] buffer = new byte[1024];
+                    byte[] buffer = new byte[2048];
                     int read;
                     
                     while (isPlayingWebAudio && (read = inputStream.read(buffer)) != -1) {

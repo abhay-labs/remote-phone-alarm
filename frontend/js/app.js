@@ -1274,7 +1274,6 @@ let audioContext = null;
 let hearStreamReader = null;
 let isHearing = false;
 let hearSessionId = 0;
-let scheduledHearSources = [];
 
 let talkAudioContext = null;
 let talkStream = null;
@@ -1287,7 +1286,6 @@ let isCameraAudioPlaying = false;
 let isCameraAudioManuallyMuted = false;
 let isCameraAudioConnecting = false;
 let cameraAudioSessionId = 0;
-let scheduledCameraSources = [];
 
 // 1. Listen Live (Hear Phone Call)
 const startHearBtn = document.getElementById('start-hear-btn');
@@ -1362,21 +1360,11 @@ async function startHearing() {
         source.connect(audioContext.destination);
         
         const currentTime = audioContext.currentTime;
-        if (nextStartTime < currentTime || nextStartTime > currentTime + 0.35) {
-          scheduledHearSources.forEach(src => {
-            try { src.stop(); } catch (e) {}
-          });
-          scheduledHearSources = [];
-          nextStartTime = currentTime + 0.03;
+        if (nextStartTime < currentTime) {
+          nextStartTime = currentTime + 0.05;
         }
-        
         source.start(nextStartTime);
-        scheduledHearSources.push(source);
         nextStartTime += audioBuffer.duration;
-        
-        source.onended = () => {
-          scheduledHearSources = scheduledHearSources.filter(src => src !== source);
-        };
       }
     }
     if (currentSessionId === hearSessionId) {
@@ -1396,10 +1384,6 @@ function stopHearing() {
     try { hearStreamReader.cancel(); } catch (e) {}
     hearStreamReader = null;
   }
-  scheduledHearSources.forEach(src => {
-    try { src.stop(); } catch (e) {}
-  });
-  scheduledHearSources = [];
   if (audioContext) {
     try { audioContext.close(); } catch (e) {}
     audioContext = null;
@@ -1574,21 +1558,11 @@ async function startCameraAudio() {
         source.connect(cameraAudioContext.destination);
 
         const currentTime = cameraAudioContext.currentTime;
-        if (nextStartTime < currentTime || nextStartTime > currentTime + 0.35) {
-          scheduledCameraSources.forEach(src => {
-            try { src.stop(); } catch (e) {}
-          });
-          scheduledCameraSources = [];
-          nextStartTime = currentTime + 0.03;
+        if (nextStartTime < currentTime) {
+          nextStartTime = currentTime + 0.05;
         }
-        
         source.start(nextStartTime);
-        scheduledCameraSources.push(source);
         nextStartTime += audioBuffer.duration;
-        
-        source.onended = () => {
-          scheduledCameraSources = scheduledCameraSources.filter(src => src !== source);
-        };
       }
     }
     if (currentSessionId === cameraAudioSessionId) {
@@ -1609,10 +1583,6 @@ function stopCameraAudio() {
     try { cameraAudioReader.cancel(); } catch (e) {}
     cameraAudioReader = null;
   }
-  scheduledCameraSources.forEach(src => {
-    try { src.stop(); } catch (e) {}
-  });
-  scheduledCameraSources = [];
   if (cameraAudioContext) {
     try {
       if (cameraAudioContext.state !== 'closed') {
