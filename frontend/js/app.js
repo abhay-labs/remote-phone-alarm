@@ -1058,6 +1058,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatMessageInput = document.getElementById('chat-message-input');
   const chatbotModeBtn = document.getElementById('chatbot-mode-btn');
   const humanModeBtn = document.getElementById('human-mode-btn');
+  const chatAttachBtn = document.getElementById('chat-attach-btn');
+  const chatFileInput = document.getElementById('chat-file-input');
+  const chatClearFileBtn = document.getElementById('chat-clear-file-btn');
 
   if (chatSendBtn && chatMessageInput) {
     chatSendBtn.addEventListener('click', sendChatMessage);
@@ -1066,6 +1069,15 @@ document.addEventListener('DOMContentLoaded', () => {
         sendChatMessage();
       }
     });
+  }
+
+  if (chatAttachBtn && chatFileInput) {
+    chatAttachBtn.addEventListener('click', () => chatFileInput.click());
+    chatFileInput.addEventListener('change', handleChatFileSelect);
+  }
+
+  if (chatClearFileBtn) {
+    chatClearFileBtn.addEventListener('click', clearChatFileSelect);
   }
 
   if (chatbotModeBtn && humanModeBtn) {
@@ -1706,6 +1718,7 @@ async function deleteGift(giftId) {
 
 let chatPollInterval = null;
 let chatMessageCount = 0;
+let chatSelectedFile = null;
 
 function escapeHTML(str) {
   return str.replace(/[&<>'"]/g, 
@@ -1738,12 +1751,14 @@ async function loadChats(forceScroll = false) {
       // Update chatbot mode toggle UI and input state
       const botModeBtn = document.getElementById('chatbot-mode-btn');
       const humModeBtn = document.getElementById('human-mode-btn');
+      const chatAttachBtn = document.getElementById('chat-attach-btn');
       if (json.chatbotMode === 'chatbot') {
         if (chatInput) {
           chatInput.disabled = true;
           chatInput.placeholder = "Chatbot Mode is Active - AI is replying 🤖";
         }
         if (chatSendBtn) chatSendBtn.disabled = true;
+        if (chatAttachBtn) chatAttachBtn.disabled = true;
         if (botModeBtn) botModeBtn.classList.add('active');
         if (humModeBtn) humModeBtn.classList.remove('active');
       } else {
@@ -1752,6 +1767,7 @@ async function loadChats(forceScroll = false) {
           chatInput.placeholder = "Type a romantic message as her Hubby...";
         }
         if (chatSendBtn) chatSendBtn.disabled = false;
+        if (chatAttachBtn) chatAttachBtn.disabled = false;
         if (botModeBtn) botModeBtn.classList.remove('active');
         if (humModeBtn) humModeBtn.classList.add('active');
       }
@@ -1792,9 +1808,47 @@ async function loadChats(forceScroll = false) {
         
         const timeFormatted = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
+        let attachmentHtml = '';
+        if (msg.attachment) {
+          const type = msg.attachment.type;
+          const url = msg.attachment.url.startsWith('/') ? `${config.serverUrl}${msg.attachment.url}` : msg.attachment.url;
+          const name = msg.attachment.name || 'file';
+
+          if (type === 'image') {
+            attachmentHtml = `
+              <div class="chat-attachment-media" style="margin-top: 8px;">
+                <a href="${url}" target="_blank">
+                  <img src="${url}" alt="${name}" style="max-width: 100%; max-height: 200px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1);" />
+                </a>
+              </div>
+            `;
+          } else if (type === 'video') {
+            attachmentHtml = `
+              <div class="chat-attachment-media" style="margin-top: 8px;">
+                <video src="${url}" controls style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1);"></video>
+              </div>
+            `;
+          } else if (type === 'pdf') {
+            attachmentHtml = `
+              <div class="chat-attachment-file" style="margin-top: 8px; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px;">
+                <i class="fa-solid fa-file-pdf" style="color: #EF4444; font-size: 20px;"></i>
+                <a href="${url}" target="_blank" style="color: var(--theme-text); font-weight: 600; text-decoration: underline; font-size: 13px; word-break: break-all;">${escapeHTML(name)}</a>
+              </div>
+            `;
+          } else {
+            attachmentHtml = `
+              <div class="chat-attachment-file" style="margin-top: 8px; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px;">
+                <i class="fa-solid fa-file" style="color: #6B7280; font-size: 20px;"></i>
+                <a href="${url}" target="_blank" style="color: var(--theme-text); font-weight: 600; text-decoration: underline; font-size: 13px; word-break: break-all;">${escapeHTML(name)}</a>
+              </div>
+            `;
+          }
+        }
+
         return `
           <div class="chat-bubble ${senderClass}" style="margin-bottom: 8px; display: flex; flex-direction: column;">
             <span class="chat-sender-name">${senderDisplayName}</span>
+            ${attachmentHtml}
             <div class="chat-content-text">${escapeHTML(msg.message)}</div>
             <span class="chat-time">${timeFormatted}</span>
           </div>
@@ -1814,21 +1868,49 @@ async function sendChatMessage() {
   if (!chatInput) return;
   
   const messageText = chatInput.value.trim();
-  if (!messageText) return;
+  if (!messageText && !chatSelectedFile) return;
   
   chatInput.value = '';
   
   try {
+    let attachmentObj = null;
+    const filename = chatSelectedFile ? chatSelectedFile.name : '';
+
+    if (chatSelectedFile) {
+      showFeedback('Uploading attachment...', 'info');
+      const formData = new FormData();
+      formData.append('file', chatSelectedFile);
+
+      const uploadResp = await fetch(`${config.serverUrl}/api/chat/upload?email=${encodeURIComponent(config.adminEmail)}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const uploadJson = await uploadResp.json();
+      if (!uploadJson.success) {
+        throw new Error(uploadJson.error || 'Failed to upload attachment');
+      }
+
+      attachmentObj = uploadJson.attachment;
+      clearChatFileSelect();
+    }
+
+    const payload = {
+      email: config.adminEmail,
+      sender: 'hubby',
+      message: messageText || filename
+    };
+
+    if (attachmentObj) {
+      payload.attachment = attachmentObj;
+    }
+
     const response = await fetch(`${config.serverUrl}/api/chat/send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        email: config.adminEmail,
-        sender: 'hubby',
-        message: messageText
-      })
+      body: JSON.stringify(payload)
     });
     
     const json = await response.json();
@@ -1886,6 +1968,40 @@ function stopChatPolling() {
     chatPollInterval = null;
     console.log('💬 Chat polling stopped.');
   }
+}
+
+function handleChatFileSelect(e) {
+  const fileInput = document.getElementById('chat-file-input');
+  const previewContainer = document.getElementById('chat-attachment-preview');
+  const previewFilename = document.getElementById('preview-filename');
+  const previewIcon = document.getElementById('preview-icon');
+
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
+
+  chatSelectedFile = fileInput.files[0];
+  if (previewFilename) previewFilename.textContent = chatSelectedFile.name;
+
+  if (previewIcon) {
+    previewIcon.className = 'fa-solid';
+    if (chatSelectedFile.type.startsWith('image/')) {
+      previewIcon.classList.add('fa-file-image');
+    } else if (chatSelectedFile.type.startsWith('video/')) {
+      previewIcon.classList.add('fa-file-video');
+    } else {
+      previewIcon.classList.add('fa-file');
+    }
+  }
+
+  if (previewContainer) previewContainer.style.display = 'flex';
+}
+
+function clearChatFileSelect() {
+  chatSelectedFile = null;
+  const fileInput = document.getElementById('chat-file-input');
+  if (fileInput) fileInput.value = '';
+
+  const previewContainer = document.getElementById('chat-attachment-preview');
+  if (previewContainer) previewContainer.style.display = 'none';
 }
 
 

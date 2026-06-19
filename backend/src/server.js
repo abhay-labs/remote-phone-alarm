@@ -60,6 +60,27 @@ const uploadGiftsMulter = multer({
   }
 }).array('photos', 20); // support up to 20 photos at once
 
+const ATTACHMENTS_DIR = path.join(UPLOADS_DIR, 'attachments');
+if (!fs.existsSync(ATTACHMENTS_DIR)) {
+  fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
+}
+
+const chatStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, ATTACHMENTS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'chat-' + uniqueSuffix + ext);
+  }
+});
+
+const uploadChatAttachmentMulter = multer({
+  storage: chatStorage,
+  limits: { fileSize: 25 * 1024 * 1024 } // limit 25MB
+}).single('file');
+
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
 
@@ -1242,7 +1263,7 @@ app.get('/api/chat/history', (req, res) => {
 
 // 19. POST Send Chat Message (from App or Web Control Panel)
 app.post('/api/chat/send', (req, res) => {
-  const { email, sender, message } = req.body;
+  const { email, sender, message, attachment } = req.body;
   if (!email || !sender || !message) {
     return res.status(400).json({ success: false, error: 'Email, sender, and message are required' });
   }
@@ -1257,6 +1278,10 @@ app.post('/api/chat/send', (req, res) => {
     message,
     timestamp
   };
+
+  if (attachment) {
+    chatMsg.attachment = attachment; // { type, url, name }
+  }
 
   userState.chats.push(chatMsg);
 
@@ -1285,6 +1310,47 @@ app.post('/api/chat/send', (req, res) => {
   res.json({
     success: true,
     chats: userState.chats
+  });
+});
+
+// 19b. POST Upload Chat Attachment (from App or Web Control Panel)
+app.post('/api/chat/upload', (req, res) => {
+  uploadChatAttachmentMulter(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, error: err.message });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
+
+    const { email } = req.query;
+    const userEmail = email || req.body.email;
+    if (!userEmail) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+
+    const mime = req.file.mimetype;
+    let type = 'other';
+    if (mime.startsWith('image/')) {
+      type = 'image';
+    } else if (mime.startsWith('video/')) {
+      type = 'video';
+    } else if (mime === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf')) {
+      type = 'pdf';
+    }
+
+    const urlPath = `/uploads/attachments/${req.file.filename}`;
+
+    res.json({
+      success: true,
+      attachment: {
+        type,
+        url: urlPath,
+        name: req.file.originalname
+      }
+    });
   });
 });
 

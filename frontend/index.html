@@ -518,8 +518,19 @@
             </div>
           </div>
           
+          <!-- Attachment Preview (hidden by default) -->
+          <div id="chat-attachment-preview" style="display: none; align-items: center; gap: 10px; padding: 8px 12px; background: rgba(254, 228, 230, 0.9); border: 1.5px solid var(--theme-border); border-radius: 20px; margin-bottom: 10px; font-size: 13px; color: var(--theme-text);">
+            <i class="fa-solid fa-file-image" id="preview-icon"></i>
+            <span id="preview-filename" style="flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Selected File</span>
+            <button id="chat-clear-file-btn" style="background: transparent; border: none; color: #BE123C; cursor: pointer; font-size: 16px; font-weight: bold; padding: 0 5px;">&times;</button>
+          </div>
+          
           <!-- Message input bar -->
           <div class="chat-input-bar" style="display: flex; gap: 10px; align-items: center;">
+            <input type="file" id="chat-file-input" accept="image/*,video/*" style="display: none;">
+            <button id="chat-attach-btn" style="background: rgba(255,255,255,0.8); border: 1px solid var(--theme-border); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; color: var(--theme-accent); transition: all 0.2s;" disabled>
+              <i class="fa-solid fa-paperclip"></i>
+            </button>
             <input type="text" id="chat-message-input" placeholder="Type a romantic message as her Hubby..." style="flex: 1; padding: 14px; border-radius: 30px; border: 1.5px solid var(--theme-border); font-size: 14px; background: rgba(255,255,255,0.8); color: var(--theme-text);" disabled>
             <button id="chat-send-btn" style="background: linear-gradient(135deg, #EC4899, #BE123C); color: white; border: none; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; box-shadow: 0 4px 10px rgba(225, 29, 72, 0.2); transition: all 0.2s;" disabled>
               <i class="fa-solid fa-paper-plane"></i>

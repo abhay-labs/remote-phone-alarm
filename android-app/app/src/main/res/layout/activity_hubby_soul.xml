@@ -74,32 +74,90 @@
         android:layout_alignParentBottom="true"
         android:background="#FFFFFF"
         android:elevation="4dp"
-        android:orientation="horizontal"
-        android:padding="12dp">
+        android:orientation="vertical">
 
-        <EditText
-            android:id="@+id/et_chat_input"
-            android:layout_width="0dp"
+        <!-- Attachment Preview Bar (hidden by default) -->
+        <LinearLayout
+            android:id="@+id/layout_attach_preview"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="@drawable/edittext_background"
-            android:hint="Type a sweet message... 🌸"
-            android:textColorHint="#FDA4AF"
-            android:textColor="#881337"
-            android:padding="12dp"
-            android:textSize="15sp"
-            android:maxLines="4"
-            android:inputType="textCapSentences|textMultiLine" />
+            android:orientation="horizontal"
+            android:background="#FFE4E6"
+            android:padding="8dp"
+            android:gravity="center_vertical"
+            android:visibility="gone">
 
-        <ImageButton
-            android:id="@+id/btn_chat_send"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="10dp"
-            android:background="@drawable/button_background"
-            android:src="@android:drawable/ic_menu_send"
-            android:tint="#FFFFFF"
-            android:elevation="1dp" />
+            <ImageView
+                android:id="@+id/iv_preview_thumbnail"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:scaleType="centerCrop"
+                android:background="#F3F4F6"
+                android:layout_marginStart="4dp"/>
+
+            <TextView
+                android:id="@+id/tv_preview_filename"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="Selected: file"
+                android:textColor="#881337"
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:ellipsize="end"/>
+
+            <ImageButton
+                android:id="@+id/btn_clear_attach"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:tint="#BE123C"
+                android:layout_marginEnd="4dp"/>
+        </LinearLayout>
+
+        <!-- Input Bar with Attach, EditText, and Send -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="12dp"
+            android:gravity="center_vertical">
+
+            <ImageButton
+                android:id="@+id/btn_chat_attach"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_input_add"
+                android:tint="#BE123C" />
+
+            <EditText
+                android:id="@+id/et_chat_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/edittext_background"
+                android:hint="Type a sweet message... 🌸"
+                android:textColorHint="#FDA4AF"
+                android:textColor="#881337"
+                android:padding="12dp"
+                android:textSize="15sp"
+                android:maxLines="4"
+                android:inputType="textCapSentences|textMultiLine" />
+
+            <ImageButton
+                android:id="@+id/btn_chat_send"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/button_background"
+                android:src="@android:drawable/ic_menu_send"
+                android:tint="#FFFFFF"
+                android:elevation="1dp" />
+        </LinearLayout>
     </LinearLayout>
 
 </RelativeLayout>

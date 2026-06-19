@@ -29,6 +29,75 @@
             android:textStyle="bold"
             android:layout_marginBottom="2dp"/>
 
+        <!-- Left Image Attachment View -->
+        <ImageView
+            android:id="@+id/iv_left_image"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="160dp"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp" />
+
+        <!-- Left Video Attachment View -->
+        <LinearLayout
+            android:id="@+id/layout_left_video"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="#FFE4E6"
+            android:padding="8dp"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_media_play"
+                android:tint="#BE123C" />
+            <TextView
+                android:id="@+id/tv_left_video_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Play Video"
+                android:textColor="#BE123C"
+                android:textStyle="bold"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Left Document/PDF Attachment View -->
+        <LinearLayout
+            android:id="@+id/layout_left_file"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="#F1F5F9"
+            android:padding="8dp"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_menu_save"
+                android:tint="#475569" />
+            <TextView
+                android:id="@+id/tv_left_file_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="document.pdf"
+                android:textColor="#334155"
+                android:textSize="12sp"
+                android:singleLine="true"
+                android:ellipsize="end" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/tv_left_text"
             android:layout_width="wrap_content"
@@ -72,6 +141,75 @@
             android:textSize="11sp"
             android:textStyle="bold"
             android:layout_marginBottom="2dp"/>
+
+        <!-- Right Image Attachment View -->
+        <ImageView
+            android:id="@+id/iv_right_image"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="160dp"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp" />
+
+        <!-- Right Video Attachment View -->
+        <LinearLayout
+            android:id="@+id/layout_right_video"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="#FECDD3"
+            android:padding="8dp"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_media_play"
+                android:tint="#881337" />
+            <TextView
+                android:id="@+id/tv_right_video_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Play Video"
+                android:textColor="#881337"
+                android:textStyle="bold"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Right Document/PDF Attachment View -->
+        <LinearLayout
+            android:id="@+id/layout_right_file"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="#FFE4E6"
+            android:padding="8dp"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_menu_save"
+                android:tint="#881337" />
+            <TextView
+                android:id="@+id/tv_right_file_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="document.pdf"
+                android:textColor="#881337"
+                android:textSize="12sp"
+                android:singleLine="true"
+                android:ellipsize="end" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tv_right_text"
