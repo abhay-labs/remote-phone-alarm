@@ -442,10 +442,15 @@ public class HubbySoulActivity extends AppCompatActivity {
             String name = attachment.optString("name", "file");
 
             final String absoluteUrl;
-            if (url.startsWith("/")) {
-                absoluteUrl = backendUrl + url;
-            } else {
+            if (url.startsWith("http://") || url.startsWith("https://")) {
                 absoluteUrl = url;
+            } else {
+                String cleanUrl = url.startsWith("/") ? url : "/" + url;
+                if (backendUrl.endsWith("/")) {
+                    absoluteUrl = backendUrl.substring(0, backendUrl.length() - 1) + cleanUrl;
+                } else {
+                    absoluteUrl = backendUrl + cleanUrl;
+                }
             }
 
             if ("image".equals(type)) {
@@ -458,6 +463,16 @@ public class HubbySoulActivity extends AppCompatActivity {
                     });
                 }
             } else if ("video".equals(type)) {
+                if (ivImage != null) {
+                    ivImage.setVisibility(View.VISIBLE);
+                    // Load the first frame of the video as a thumbnail using Glide
+                    Glide.with(this).load(absoluteUrl).placeholder(android.R.drawable.progress_horizontal).into(ivImage);
+                    ivImage.setOnClickListener(v -> {
+                        Intent intent = new Intent(Intent.ACTION_VIEW);
+                        intent.setDataAndType(Uri.parse(absoluteUrl), "video/*");
+                        startActivity(intent);
+                    });
+                }
                 if (layoutVideo != null) {
                     layoutVideo.setVisibility(View.VISIBLE);
                     if (tvVideoName != null) {
