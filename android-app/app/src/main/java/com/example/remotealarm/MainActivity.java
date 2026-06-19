@@ -481,23 +481,73 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private boolean areCorePermissionsGranted() {
+        String[] permissions;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions = new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.READ_PHONE_STATE,
+                    Manifest.permission.READ_CALL_LOG,
+                    Manifest.permission.PROCESS_OUTGOING_CALLS,
+                    Manifest.permission.POST_NOTIFICATIONS
+            };
+        } else {
+            permissions = new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.READ_PHONE_STATE,
+                    Manifest.permission.READ_CALL_LOG,
+                    Manifest.permission.PROCESS_OUTGOING_CALLS
+            };
+        }
+        for (String perm : permissions) {
+            if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
         
-        // If app is configured but Device Admin is disabled, redirect immediately to WarningActivity
+        // 1. Check core runtime permissions. If any are missing, wait for checkAndRequestPermissions to handle it.
+        if (!areCorePermissionsGranted()) {
+            return;
+        }
+
+        // 2. Check and request Overlay permission if not granted
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            checkAndRequestOverlayPermission();
+            return;
+        }
+
+        // 3. Check and request Usage Access permission if not granted
+        if (!isUsageAccessGranted()) {
+            requestUsageAccessPermission();
+            return;
+        }
+
+        // 4. Check and request DND policy access if not granted
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notificationManager != null && !notificationManager.isNotificationPolicyAccessGranted()) {
+            requestDndPermission();
+            return;
+        }
+
+        // 5. If app is configured but Device Admin is disabled, redirect immediately to WarningActivity
         String savedEmail = prefs != null ? prefs.getString("email", "") : "";
         if (!savedEmail.isEmpty()) {
             if (devicePolicyManager != null && adminComponent != null && !devicePolicyManager.isAdminActive(adminComponent)) {
                 Intent warningIntent = new Intent(this, WarningActivity.class);
                 warningIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(warningIntent);
-                return;
-            }
-
-            // Check and request Usage Access permission if not granted
-            if (!isUsageAccessGranted()) {
-                requestUsageAccessPermission();
                 return;
             }
         }
