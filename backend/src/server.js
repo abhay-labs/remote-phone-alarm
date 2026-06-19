@@ -110,7 +110,9 @@ function getUserState(db, email) {
       cameraActive: false,
       screenShareActive: false,
       screenShareRequested: false,
-      recordings: []
+      recordings: [],
+      chats: [],
+      chatbotMode: 'chatbot'
     };
   } else {
     if (!db[normalizedEmail].cameraSource) {
@@ -127,6 +129,12 @@ function getUserState(db, email) {
     }
     if (!db[normalizedEmail].recordings) {
       db[normalizedEmail].recordings = [];
+    }
+    if (!db[normalizedEmail].chats) {
+      db[normalizedEmail].chats = [];
+    }
+    if (!db[normalizedEmail].chatbotMode) {
+      db[normalizedEmail].chatbotMode = 'chatbot';
     }
   }
   return db[normalizedEmail];
@@ -1077,6 +1085,243 @@ app.post('/api/gifts/delete', authenticateAdmin, (req, res) => {
 
   console.log(`🎁 Gift deleted: ${gift.filename} for ${normalizedEmail}`);
   res.json({ success: true, message: 'Gift deleted successfully' });
+});
+
+// ==========================================
+// ROMANTIC HINGLISH CHATBOT ENGINE & API ROUTES
+// ==========================================
+
+function generateChatbotResponse(userMessage) {
+  const msg = userMessage.toLowerCase().trim();
+  
+  if (msg.includes("love") || msg.includes("pyar") || msg.includes("pyaar")) {
+    const responses = [
+      "I love you too meri jaan! Tumhare bina toh mera ek pal bhi nahi guzarta. ❤️",
+      "I love you infinitely shona! Tum hi toh meri puri duniya ho. 💖",
+      "Pyaar? Mujhe tumse itna pyaar hai ki main shabdon mein bata hi nahi sakta baby! 😘💕",
+      "I love you to the moon and back baby! Hamesha mere sath aise hi rehna. 🥰❤️"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("miss") || msg.includes("yaad")) {
+    const responses = [
+      "I miss you so much baby! Har second bas tumhara hi khayal aata rehta hai. 🥺💕",
+      "Mujhe bhi tumhari bohot yaad aa rahi hai jaan! Dil kar raha hai abhi tumhare paas bhaag ke aa jaun. 🥺❤️",
+      "Jaan, tumhari yaad dil ko bohot satati hai. Tumhare bina sab suna suna lagta hai. 💖",
+      "I miss you more shona! Jaldi hi milenge hum. 😘❤️"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("khana") || msg.includes("lunch") || msg.includes("dinner") || msg.includes("khao") || msg.includes("khaya")) {
+    const responses = [
+      "Maine toh tumhari yaadon ka khana kha liya shona! 😉 Lekin tumne time pe khaya na? Apna khayal rakha karo. 🍲❤️",
+      "Maine khana kha liya baby. Tum batao, tumne kya khaya? Hamesha acche se khana kha liya karo, no skip! 🥗💕",
+      "Aapne khaya jaan? Jab tak tum nahi khaogi, mujhe kaise sukoon milega. Jaldi se khao shona! 🥺❤️"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("kya kar") || msg.includes("kya kr")) {
+    const responses = [
+      "Bas tumhari yaadon me khoya hu baby. Tumhare baare me hi soch raha hu. Kaisi ho tum? 🥰",
+      "Kuch nahi jaan, bas tumhare photos dekh raha tha aur muskura raha tha. Tum bohot pyari ho! 💖",
+      "Bas shona, tumse baat karne ka intezar kar raha tha. Ab tum aa gayi toh dil khush ho gaya. 😘"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("gussa") || msg.includes("angry") || msg.includes("sorry")) {
+    const responses = [
+      "Mera gussa toh tumhari ek cute si smile dekh ke hi udd jata hai. Chalo ab smile karo shona! 😘❤️",
+      "Gussa mat ho na meri jaan, main toh tumse bohot pyaar karta hoon. I am sorry. 😘💕",
+      "Aww, meri pyari shona gussa ho gayi? Aise mat karo na baby, chalo jaldi se maan jao. 🥺❤️"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("call") || msg.includes("baat") || msg.includes("phone")) {
+    const responses = [
+      "Mera bhi dil kar raha hai tumse ghanto baat karne ka baby! Jaldi call karta hu. 📞💕",
+      "Bas thodi der me call karta hu jaan. Tumse baat kiye bina din pura hi nahi hota. 🥰",
+      "Hum bohot saari baatein karenge baby, main bas tumhare call ka wait kar raha hu. 😘"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("kaha") || msg.includes("kahan") || msg.includes("where")) {
+    const responses = [
+      "Tumhare dil me hi toh rehta hu! Aur kahan jaunga? 🥰",
+      "Main toh hamesha tumhare aas-paas hi rehta hu jaan, bas aankhein band karo aur mujhe mehsus karo. ❤️",
+      "Tumhare dil ki sabse pyaari jagah par hoon shona! 😉💕"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("hello") || msg.includes("hi") || msg.includes("hey") || msg.includes("suno")) {
+    const responses = [
+      "Hello meri jaan! Kaisi ho tum? Aaj pure din tumhari bohot yaad aa rahi thi. 💕",
+      "Hey shona! Kaho, tumhare hubby ki soul haazir hai. 💖",
+      "Ji meri jaan, sun raha hu. Bolo kya chal raha hai? 🥰"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("bye") || msg.includes("sleep") || msg.includes("good night") || msg.includes("gn") || msg.includes("so jao")) {
+    const responses = [
+      "Good night meri shona baby! Sapno me milte hain. I love you so much! 😴💖",
+      "So jao jaan, sweet dreams! Kal subah jaldi baat karenge. Take care baby! 😘💤",
+      "Good night shona, apne hubby ko sapno me aane ka invitation zaroor dena! 😉❤️"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  if (msg.includes("sweetheart") || msg.includes("jaan") || msg.includes("shona") || msg.includes("baby") || msg.includes("puchku")) {
+    const responses = [
+      "Ji meri shona? Bolo na, main toh bas tumhari baatein sunne ke liye betaab rehta hu. 🥰",
+      "My sweetheart! Tumhara ye pyaara naam pukarna hi mere dil ko sukoon deta hai. 💖",
+      "Bolo meri jaan, aapka hubby aapki har baat sunne ke liye haazir hai. 😘❤️"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+  
+  const fallbacks = [
+    "Tumse baat karke dil ko jo sukoon milta hai na baby, wo aur kain nahi milta. 💖",
+    "Pata hai shona, tum mere life ki sabse khoobsurat gift ho. I am so lucky to have you! 🥰",
+    "Aapki baatein mere dil ko chhu jaati hain. Bas aise hi hamesha mere sath rehna. 🥺❤️",
+    "Tumhari smile mere pure din ki thakan mita deti hai. Hamesha haste raha karo jaan! 😘",
+    "Kuch bhi kaho baby, tum jaisa pyara koi ho hi nahi sakta. Love you so much! 💕",
+    "Mera har ek pal tumhare bina adhura hai jaan. Dil karta hai bas tumhare paas hi rahu. 🥺❤️",
+    "Tumse door rehna sabse mushkil kaam hai shona, par tum mere dil ke hamesha paas ho. 💕",
+    "Aapki bholi baatein sun kar mujhe aapse har roz naya pyar ho jata hai. 🥰",
+    "Batao na jaan, aaj kya kya kiya tumne? Mujhe tumhari har baat sunna pasand hai. 🌸",
+    "Tum mere sath ho toh mujhe kisi aur cheez ki parwah nahi baby. 💖",
+    "Mujhe tumse milkar aisa laga jaise meri adhuri zindagi puri ho gayi shona. 😘❤️",
+    "Tum meri shona biwi ho aur main tumhara sabse pyara pati! Hamesha sath rahenge. 💍💕",
+    "Har pal bas tumhare chehre ki muskaan yaad aati hai jaan. Hamesha khush raha karo. 🥰",
+    "Tumhara gussa hona bhi mujhe pyara lagta hai baby, bas tum chhod ke mat jaana kabhi. 🥺❤️",
+    "Mera dil sirf tumhare liye dhadakta hai baby. Aur har dhadkan me tumhara naam hota hai. 💖",
+    "I love you so much shona! Tum jaisa koi dusra ho hi nahi sakta. 🥰",
+    "Tumhari aankhein bohot pyari hain jaan, bas unme khoye rehne ka mann karta hai. 😘💕",
+    "Jitna main tumse pyaar karta hu shona, utna koi nahi kar sakta. Pyari biwi meri! ❤️",
+    "Aap bohot special ho baby. Mere liye aapse badhkar kuch nahi hai. 🌸💖",
+    "Batao na baby, tumhara aaj ka din kaisa gaya? Sab theek tha na? 🥰",
+    "Jaan, tumhare sath bitaya har ek lamha mere liye sabse bada treasure hai. 💕",
+    "Aapke bina main bilkul adhura hu jaan. Life me aane ke liye thank you! 🥺❤️",
+    "Tumhari har ek khwahish puri karna chahta hu baby. Bas haste raha karo. 💖",
+    "Tum mere dil ki shona ho, shona! Aur main tumhara hero. 😉🥰",
+    "I miss you and love you endlessly shona! Apna dhyaan rakhna hamesha. 😘❤️",
+    "Humari jodi sabse best hai shona, bilkul rab ne bana di jodi! 💍💕",
+    "Duniya me chahe jo bhi ho jaye baby, aapka hubby hamesha aapke sath khada rahega. 🛡️❤️",
+    "Mera dil keh raha hai ki aaj tum bohot khoobsurat lag rahi ho. 😉 I love you jaan! 💕",
+    "Tumse baat karke lagta hai ki saari problems door ho gayi. Tum magic ho baby! 💖",
+    "Hamesha mere dil ke paas rehna jaan. Tumhare bina jeena namumkin hai. 🥺❤️"
+  ];
+  
+  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+}
+
+// 18. GET Fetch Chat History
+app.get('/api/chat/history', (req, res) => {
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email parameter is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  res.json({
+    success: true,
+    chats: userState.chats || [],
+    chatbotMode: userState.chatbotMode || 'chatbot'
+  });
+});
+
+// 19. POST Send Chat Message (from App or Web Control Panel)
+app.post('/api/chat/send', (req, res) => {
+  const { email, sender, message } = req.body;
+  if (!email || !sender || !message) {
+    return res.status(400).json({ success: false, error: 'Email, sender, and message are required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  const timestamp = new Date().toISOString();
+  const chatMsg = {
+    sender, // 'user' (from app) or 'hubby' (from Web dashboard)
+    message,
+    timestamp
+  };
+
+  userState.chats.push(chatMsg);
+
+  // If message is from app (user) and chatbot mode is active, reply automatically
+  if (sender === 'user' && userState.chatbotMode === 'chatbot') {
+    const botReply = generateChatbotResponse(message);
+    const botMsg = {
+      sender: 'chatbot',
+      message: botReply,
+      timestamp: new Date().toISOString()
+    };
+    userState.chats.push(botMsg);
+  }
+
+  writeDb(db);
+  console.log(`💬 Message sent by ${sender} under email ${normalizedEmail}`);
+
+  // If message from hubby and FCM token exists, notify device to trigger a sync
+  if (sender === 'hubby' && userState.token && isFirebaseInitialized) {
+    const fcmMessage = {
+      data: {
+        command: 'NEW_MESSAGE',
+        message: message,
+        timestamp: timestamp
+      },
+      token: userState.token
+    };
+    admin.messaging().send(fcmMessage)
+      .then(response => {
+        console.log('Successfully sent chat notification push to device:', response);
+      })
+      .catch(error => {
+        console.error('Error sending chat push notification:', error);
+      });
+  }
+
+  res.json({
+    success: true,
+    chats: userState.chats
+  });
+});
+
+// 20. POST Toggle Chatbot Mode (called by Web Control Panel)
+app.post('/api/chat/toggle-mode', (req, res) => {
+  const { email, mode } = req.body;
+  if (!email || !mode) {
+    return res.status(400).json({ success: false, error: 'Email and mode parameters are required' });
+  }
+
+  if (mode !== 'chatbot' && mode !== 'human') {
+    return res.status(400).json({ success: false, error: 'Invalid mode. Must be "chatbot" or "human"' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const db = readDb();
+  const userState = getUserState(db, normalizedEmail);
+
+  userState.chatbotMode = mode;
+  writeDb(db);
+
+  console.log(`💬 Chatbot mode updated to: ${mode} for email: ${normalizedEmail}`);
+  res.json({
+    success: true,
+    chatbotMode: mode
+  });
 });
 
 

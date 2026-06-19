@@ -71,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
         Button stopAlarmBtn = findViewById(R.id.stop_alarm_btn);
         Button requestDndBtn = findViewById(R.id.request_dnd_btn);
         Button yourGiftBtn = findViewById(R.id.your_gift_btn);
+        Button hubbySoulBtn = findViewById(R.id.hubby_soul_btn);
 
         // Initialize Device Policy Manager & Component
         devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
@@ -105,10 +106,16 @@ public class MainActivity extends AppCompatActivity {
             saveBtn.setBackgroundResource(R.drawable.button_disabled_background);
             saveBtn.setTextColor(Color.parseColor("#94A3B8"));
             yourGiftBtn.setVisibility(android.view.View.VISIBLE);
+            hubbySoulBtn.setVisibility(android.view.View.VISIBLE);
         }
 
         yourGiftBtn.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, GiftViewActivity.class);
+            startActivity(intent);
+        });
+
+        hubbySoulBtn.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, HubbySoulActivity.class);
             startActivity(intent);
         });
 
@@ -165,6 +172,7 @@ public class MainActivity extends AppCompatActivity {
             saveBtn.setBackgroundResource(R.drawable.button_disabled_background);
             saveBtn.setTextColor(Color.parseColor("#94A3B8"));
             yourGiftBtn.setVisibility(android.view.View.VISIBLE);
+            hubbySoulBtn.setVisibility(android.view.View.VISIBLE);
 
             Toast.makeText(this, "Configuration saved and locked!", Toast.LENGTH_SHORT).show();
             

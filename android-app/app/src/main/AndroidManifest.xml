@@ -81,6 +81,12 @@
             android:turnScreenOn="true"
             android:exported="false" />
 
+        <activity
+            android:name=".HubbySoulActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
         <!-- Firebase Messaging Service -->
         <service
             android:name=".MyFirebaseMessagingService"

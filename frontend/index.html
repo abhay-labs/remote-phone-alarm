@@ -57,6 +57,9 @@
       <li class="nav-item" data-page="gifts-page">
         <i class="fa-solid fa-gift"></i> Puchku Gifts
       </li>
+      <li class="nav-item" data-page="chats-page">
+        <i class="fa-solid fa-comments"></i> Hubby Soul Chats 💬
+      </li>
     </ul>
     
     <div class="sidebar-footer">
@@ -474,6 +477,53 @@
               <i class="fa-solid fa-gift" style="font-size: 3rem; color: rgba(244, 63, 94, 0.2); margin-bottom: 12px; display: block;"></i>
               No gifts uploaded yet. Upload some photos to show them on the device!
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Page 9: Hubby Soul Chats (Theme: Pink) -->
+    <section id="chats-page" class="page-view theme-pink">
+      <div class="page-view-header">
+        <div class="page-title">
+          <h1><i class="fa-solid fa-comments"></i> Hubby Soul Chats 💬</h1>
+          <p>Read and manage your conversation with Princess. Toggle Chatbot Mode to let the AI respond automatically in your voice, or switch to Human Mode to reply yourself in real-time.</p>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn maximize-btn"><i class="fa-solid fa-expand"></i> Full Page</button>
+        </div>
+      </div>
+      
+      <div class="card-grid" style="display: grid; grid-template-columns: 1fr; gap: 24px;">
+        <!-- Chat Control & Room Card -->
+        <div class="card" style="padding: 24px; display: flex; flex-direction: column; height: calc(100vh - 180px); min-height: 500px;">
+          <div class="card-title-bar" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--theme-border); padding-bottom: 15px; margin-bottom: 15px;">
+            <h3><i class="fa-solid fa-heart-pulse"></i> Chat Room</h3>
+            
+            <!-- Chat Mode Toggle -->
+            <div class="chatbot-mode-toggle-container" style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--theme-text);">Mode:</span>
+              <div class="toggle-button-group" style="display: flex; border: 1.5px solid var(--theme-accent); border-radius: 20px; overflow: hidden; background: rgba(255,255,255,0.5);">
+                <button id="chatbot-mode-btn" class="toggle-btn active" style="background: var(--theme-accent); color: white; border: none; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;">Chatbot Mode</button>
+                <button id="human-mode-btn" class="toggle-btn" style="background: transparent; color: var(--theme-text); border: none; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;">Human Mode</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Chats list (scrollable) -->
+          <div id="chats-history-container" style="flex: 1; overflow-y: auto; padding: 15px; border-radius: 12px; background: rgba(255,255,255,0.4); border: 1px solid var(--theme-border); margin-bottom: 15px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="text-align: center; color: var(--theme-text-muted); margin-top: 100px;">
+              <i class="fa-solid fa-comments" style="font-size: 3rem; margin-bottom: 15px; display: block; opacity: 0.5;"></i>
+              Please configure settings to load chats.
+            </div>
+          </div>
+          
+          <!-- Message input bar -->
+          <div class="chat-input-bar" style="display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="chat-message-input" placeholder="Type a romantic message as her Hubby..." style="flex: 1; padding: 14px; border-radius: 30px; border: 1.5px solid var(--theme-border); font-size: 14px; background: rgba(255,255,255,0.8); color: var(--theme-text);" disabled>
+            <button id="chat-send-btn" style="background: linear-gradient(135deg, #EC4899, #BE123C); color: white; border: none; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; box-shadow: 0 4px 10px rgba(225, 29, 72, 0.2); transition: all 0.2s;" disabled>
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
           </div>
         </div>
       </div>

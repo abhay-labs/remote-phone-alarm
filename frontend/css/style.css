@@ -1312,3 +1312,102 @@ body.theme-white .status-card-stat {
   transform: scale(1.1);
 }
 
+/* ==========================================
+   HUBBY SOUL CHAT ROOM STYLING
+   ========================================== */
+
+.chat-bubble {
+  max-width: 70%;
+  padding: 12px 18px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.4;
+  position: relative;
+  word-wrap: break-word;
+  box-shadow: 0 2px 6px rgba(136, 19, 55, 0.04);
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #F43F5E, #BE123C);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-bubble.hubby, .chat-bubble.chatbot {
+  align-self: flex-start;
+  background: white;
+  color: #4C0519;
+  border: 1px solid rgba(254, 205, 211, 0.8);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-bubble.chatbot {
+  border-left: 4px solid #EC4899;
+}
+
+.chat-time {
+  display: block;
+  font-size: 10px;
+  margin-top: 5px;
+  opacity: 0.7;
+  text-align: right;
+}
+
+.chat-bubble.user .chat-time {
+  color: #FECDD3;
+}
+
+.chat-bubble.hubby .chat-time, .chat-bubble.chatbot .chat-time {
+  color: #94A3B8;
+}
+
+.chat-sender-name {
+  font-weight: 700;
+  font-size: 11px;
+  margin-bottom: 3px;
+  display: block;
+}
+
+.chat-bubble.user .chat-sender-name {
+  color: #FFE4E6;
+}
+
+.chat-bubble.hubby .chat-sender-name {
+  color: #BE123C;
+}
+
+.chat-bubble.chatbot .chat-sender-name {
+  color: #EC4899;
+}
+
+.chatbot-mode-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toggle-button-group {
+  display: flex;
+  border: 1.5px solid var(--theme-accent);
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.toggle-btn {
+  background: transparent;
+  color: var(--theme-text);
+  border: none;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-btn.active {
+  background: var(--theme-accent);
+  color: white;
+}
+

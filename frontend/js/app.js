@@ -925,6 +925,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      // Manage chat polling state
+      if (pageId === 'chats-page') {
+        startChatPolling();
+      } else {
+        stopChatPolling();
+      }
+
       // Synchronize with hidden media tab buttons inside app.js logic
       if (pageId === 'camera-page') {
         const tabCam = document.getElementById('tab-camera-btn');
@@ -1044,6 +1051,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (refreshGiftsBtn) {
     refreshGiftsBtn.addEventListener('click', loadGifts);
+  }
+
+  // Chat Room Listeners
+  const chatSendBtn = document.getElementById('chat-send-btn');
+  const chatMessageInput = document.getElementById('chat-message-input');
+  const chatbotModeBtn = document.getElementById('chatbot-mode-btn');
+  const humanModeBtn = document.getElementById('human-mode-btn');
+
+  if (chatSendBtn && chatMessageInput) {
+    chatSendBtn.addEventListener('click', sendChatMessage);
+    chatMessageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendChatMessage();
+      }
+    });
+  }
+
+  if (chatbotModeBtn && humanModeBtn) {
+    chatbotModeBtn.addEventListener('click', () => toggleChatbotMode('chatbot'));
+    humanModeBtn.addEventListener('click', () => toggleChatbotMode('human'));
   }
 });
 
@@ -1670,6 +1697,188 @@ async function deleteGift(giftId) {
     }
   } catch (error) {
     showFeedback(`Error: ${error.message}`, 'error');
+  }
+}
+
+// ==========================================
+// HUBBY SOUL CHATS FRONTEND CONTROLLER
+// ==========================================
+
+let chatPollInterval = null;
+let chatMessageCount = 0;
+
+function escapeHTML(str) {
+  return str.replace(/[&<>'"]/g, 
+    tag => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[tag] || tag)
+  );
+}
+
+async function loadChats(forceScroll = false) {
+  if (!config.adminEmail || !config.serverUrl) return;
+  
+  try {
+    const response = await fetch(`${config.serverUrl}/api/chat/history?email=${encodeURIComponent(config.adminEmail)}`, {
+      method: 'GET'
+    });
+    const json = await response.json();
+    
+    if (json.success) {
+      const chatsContainer = document.getElementById('chats-history-container');
+      const chatInput = document.getElementById('chat-message-input');
+      const chatSendBtn = document.getElementById('chat-send-btn');
+      
+      if (!chatsContainer) return;
+
+      // Enable inputs since configuration is loaded
+      if (chatInput) chatInput.disabled = false;
+      if (chatSendBtn) chatSendBtn.disabled = false;
+      
+      // Update chatbot mode toggle UI
+      const botModeBtn = document.getElementById('chatbot-mode-btn');
+      const humModeBtn = document.getElementById('human-mode-btn');
+      if (json.chatbotMode === 'chatbot') {
+        if (botModeBtn) botModeBtn.classList.add('active');
+        if (humModeBtn) humModeBtn.classList.remove('active');
+      } else {
+        if (botModeBtn) botModeBtn.classList.remove('active');
+        if (humModeBtn) humModeBtn.classList.add('active');
+      }
+      
+      const messages = json.chats;
+      
+      // If message count is same and we're not forcing, skip rendering to prevent scroll disruption
+      if (messages.length === chatMessageCount && !forceScroll) {
+        return;
+      }
+      
+      chatMessageCount = messages.length;
+      
+      if (messages.length === 0) {
+        chatsContainer.innerHTML = `
+          <div style="text-align: center; color: var(--theme-text-muted); margin-top: 100px;">
+            <i class="fa-solid fa-heart" style="font-size: 3rem; color: var(--theme-accent); margin-bottom: 15px; display: block; opacity: 0.5;"></i>
+            No chats yet. Start the conversation by sending a message! 💖
+          </div>
+        `;
+        return;
+      }
+      
+      chatsContainer.innerHTML = messages.map(msg => {
+        let senderClass = '';
+        let senderDisplayName = '';
+        
+        if (msg.sender === 'user') {
+          senderClass = 'user';
+          senderDisplayName = 'Princess 👑';
+        } else if (msg.sender === 'chatbot') {
+          senderClass = 'chatbot';
+          senderDisplayName = "Hubby's Soul (AI) 💖";
+        } else {
+          senderClass = 'hubby';
+          senderDisplayName = 'Hubby (You) 🤵';
+        }
+        
+        const timeFormatted = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        return `
+          <div class="chat-bubble ${senderClass}" style="margin-bottom: 8px; display: flex; flex-direction: column;">
+            <span class="chat-sender-name">${senderDisplayName}</span>
+            <div class="chat-content-text">${escapeHTML(msg.message)}</div>
+            <span class="chat-time">${timeFormatted}</span>
+          </div>
+        `;
+      }).join('');
+      
+      // Auto scroll to bottom
+      chatsContainer.scrollTop = chatsContainer.scrollHeight;
+    }
+  } catch (error) {
+    console.error('Error loading chat history:', error);
+  }
+}
+
+async function sendChatMessage() {
+  const chatInput = document.getElementById('chat-message-input');
+  if (!chatInput) return;
+  
+  const messageText = chatInput.value.trim();
+  if (!messageText) return;
+  
+  chatInput.value = '';
+  
+  try {
+    const response = await fetch(`${config.serverUrl}/api/chat/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        sender: 'hubby',
+        message: messageText
+      })
+    });
+    
+    const json = await response.json();
+    if (json.success) {
+      loadChats(true); // Force scroll on send
+    } else {
+      showFeedback(`Failed to send message: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Error sending message: ${error.message}`, 'error');
+  }
+}
+
+async function toggleChatbotMode(newMode) {
+  try {
+    const response = await fetch(`${config.serverUrl}/api/chat/toggle-mode`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: config.adminEmail,
+        mode: newMode
+      })
+    });
+    
+    const json = await response.json();
+    if (json.success) {
+      showFeedback(`Chat mode changed to ${newMode === 'chatbot' ? 'Chatbot' : 'Human'}!`, 'success');
+      loadChats(true);
+    } else {
+      showFeedback(`Failed to change mode: ${json.error}`, 'error');
+    }
+  } catch (error) {
+    showFeedback(`Error toggling chat mode: ${error.message}`, 'error');
+  }
+}
+
+function startChatPolling() {
+  stopChatPolling();
+  
+  // Load initially
+  loadChats(true);
+  
+  // Set interval to poll every 2 seconds
+  chatPollInterval = setInterval(() => {
+    loadChats(false);
+  }, 2000);
+  console.log('💬 Chat polling started.');
+}
+
+function stopChatPolling() {
+  if (chatPollInterval) {
+    clearInterval(chatPollInterval);
+    chatPollInterval = null;
+    console.log('💬 Chat polling stopped.');
   }
 }
 

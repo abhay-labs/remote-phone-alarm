@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <!-- Left Aligned Message Container (Received from Hubby or Chatbot) -->
+    <LinearLayout
+        android:id="@+id/layout_left_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
+        android:layout_marginEnd="60dp"
+        android:background="@drawable/chat_left_bubble_bg"
+        android:orientation="vertical"
+        android:paddingLeft="14dp"
+        android:paddingTop="10dp"
+        android:paddingRight="14dp"
+        android:paddingBottom="10dp">
+
+        <TextView
+            android:id="@+id/tv_left_sender"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Hubby's Soul"
+            android:textColor="#BE123C"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="2dp"/>
+
+        <TextView
+            android:id="@+id/tv_left_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Romantic response goes here..."
+            android:textColor="#4C0519"
+            android:textSize="14sp"/>
+
+        <TextView
+            android:id="@+id/tv_left_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="3dp"
+            android:text="12:34 PM"
+            android:textColor="#94A3B8"
+            android:textSize="10sp"/>
+    </LinearLayout>
+
+    <!-- Right Aligned Message Container (Sent by User/Princess) -->
+    <LinearLayout
+        android:id="@+id/layout_right_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginStart="60dp"
+        android:background="@drawable/chat_right_bubble_bg"
+        android:orientation="vertical"
+        android:paddingLeft="14dp"
+        android:paddingTop="10dp"
+        android:paddingRight="14dp"
+        android:paddingBottom="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tv_right_sender"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Princess"
+            android:textColor="#FFE4E6"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="2dp"/>
+
+        <TextView
+            android:id="@+id/tv_right_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sent message goes here..."
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"/>
+
+        <TextView
+            android:id="@+id/tv_right_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="3dp"
+            android:text="12:34 PM"
+            android:textColor="#FECDD3"
+            android:textSize="10sp"/>
+    </LinearLayout>
+</LinearLayout>

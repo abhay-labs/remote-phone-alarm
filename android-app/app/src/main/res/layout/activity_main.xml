@@ -156,6 +156,21 @@
             android:elevation="2dp"
             android:visibility="gone" />
 
+        <!-- Section: Your Hubby's Soul Button -->
+        <Button
+            android:id="@+id/hubby_soul_btn"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:text="Your Hubby's Soul 💬"
+            android:background="@drawable/button_background"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:layout_marginBottom="25dp"
+            android:elevation="2dp"
+            android:visibility="gone" />
+
         <!-- Hidden input fields to prevent code breakages in MainActivity -->
         <EditText
             android:id="@+id/backend_url_input"
