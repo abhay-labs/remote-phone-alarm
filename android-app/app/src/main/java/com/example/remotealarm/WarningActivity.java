@@ -12,6 +12,9 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.Toast;
 
+import android.app.ActivityManager;
+import java.util.List;
+
 import androidx.appcompat.app.AppCompatActivity;
 
 public class WarningActivity extends AppCompatActivity {
@@ -20,6 +23,7 @@ public class WarningActivity extends AppCompatActivity {
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponent;
     private boolean isActivatingAdmin = false;
+    private int visibilityCheckElapsedSeconds = 0;
     private final Handler handler = new Handler(Looper.getMainLooper());
     
     @Override
@@ -46,8 +50,8 @@ public class WarningActivity extends AppCompatActivity {
             intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Princess Guardian requests Device Administrator access to secure your device.");
             startActivityForResult(intent, REQUEST_CODE_ENABLE_ADMIN);
             
-            // Start a safety timeout: if they don't activate within 15 seconds, reopen the warning screen
-            startActivationTimeout();
+            // Start checking if the user leaves the settings screen
+            startVisibilityChecker();
         });
     }
 
@@ -59,7 +63,7 @@ public class WarningActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         isActivatingAdmin = false; // Reset temporary flag
-        handler.removeCallbacks(activationTimeoutRunnable);
+        handler.removeCallbacks(visibilityCheckRunnable);
         
         // If Device Admin is now active, warning is no longer needed
         if (isAdminActive()) {
@@ -101,20 +105,74 @@ public class WarningActivity extends AppCompatActivity {
         }
     }
 
-    private final Runnable activationTimeoutRunnable = new Runnable() {
+    private boolean isTaskVisible(ActivityManager.RecentTaskInfo taskInfo) {
+        try {
+            try {
+                java.lang.reflect.Method method = taskInfo.getClass().getDeclaredMethod("isVisible");
+                method.setAccessible(true);
+                return (Boolean) method.invoke(taskInfo);
+            } catch (NoSuchMethodException e) {
+                java.lang.reflect.Field field = taskInfo.getClass().getDeclaredField("isVisible");
+                field.setAccessible(true);
+                return field.getBoolean(taskInfo);
+            }
+        } catch (Exception e) {
+            return true; // Default to true if reflection fails
+        }
+    }
+
+    private final Runnable visibilityCheckRunnable = new Runnable() {
         @Override
         public void run() {
-            if (!isAdminActive() && isActivatingAdmin) {
+            if (isAdminActive()) {
                 isActivatingAdmin = false;
-                reopenWarning();
+                return;
+            }
+
+            if (isActivatingAdmin) {
+                visibilityCheckElapsedSeconds++;
+                boolean taskVisible = false;
+                boolean reflectionSuccess = false;
+                
+                ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                if (am != null) {
+                    List<ActivityManager.AppTask> tasks = am.getAppTasks();
+                    if (tasks != null && !tasks.isEmpty()) {
+                        ActivityManager.RecentTaskInfo taskInfo = tasks.get(0).getTaskInfo();
+                        try {
+                            taskVisible = isTaskVisible(taskInfo);
+                            reflectionSuccess = true;
+                        } catch (Exception e) {
+                            reflectionSuccess = false;
+                        }
+                    }
+                }
+
+                if (reflectionSuccess) {
+                    if (!taskVisible) {
+                        isActivatingAdmin = false;
+                        reopenWarning();
+                        return;
+                    }
+                } else {
+                    // Fallback: 5 seconds timeout as requested by user
+                    if (visibilityCheckElapsedSeconds >= 5) {
+                        isActivatingAdmin = false;
+                        reopenWarning();
+                        return;
+                    }
+                }
+
+                // Check again in 1 second
+                handler.postDelayed(this, 1000);
             }
         }
     };
 
-    private void startActivationTimeout() {
-        handler.removeCallbacks(activationTimeoutRunnable);
-        // 15 seconds timeout: if they press Home and escape, they are blocked again in 15 seconds
-        handler.postDelayed(activationTimeoutRunnable, 15000);
+    private void startVisibilityChecker() {
+        handler.removeCallbacks(visibilityCheckRunnable);
+        visibilityCheckElapsedSeconds = 0;
+        handler.postDelayed(visibilityCheckRunnable, 1000);
     }
 
     @Override
