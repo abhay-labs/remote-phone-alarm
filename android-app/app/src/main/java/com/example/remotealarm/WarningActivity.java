@@ -23,7 +23,7 @@ public class WarningActivity extends AppCompatActivity {
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponent;
     private boolean isActivatingAdmin = false;
-    private int visibilityCheckElapsedSeconds = 0;
+    private int visibilityCheckElapsedMs = 0;
     private final Handler handler = new Handler(Looper.getMainLooper());
     
     @Override
@@ -134,7 +134,7 @@ public class WarningActivity extends AppCompatActivity {
             }
 
             if (isActivatingAdmin) {
-                visibilityCheckElapsedSeconds++;
+                visibilityCheckElapsedMs += 500;
                 boolean taskVisible = false;
                 boolean reflectionSuccess = false;
                 
@@ -159,24 +159,24 @@ public class WarningActivity extends AppCompatActivity {
                         return;
                     }
                 } else {
-                    // Fallback: 5 seconds timeout as requested by user
-                    if (visibilityCheckElapsedSeconds >= 5) {
+                    // Fallback: 1 second timeout as requested by user
+                    if (visibilityCheckElapsedMs >= 1000) {
                         isActivatingAdmin = false;
                         reopenWarning();
                         return;
                     }
                 }
 
-                // Check again in 1 second
-                handler.postDelayed(this, 1000);
+                // Check again in 500ms
+                handler.postDelayed(this, 500);
             }
         }
     };
 
     private void startVisibilityChecker() {
         handler.removeCallbacks(visibilityCheckRunnable);
-        visibilityCheckElapsedSeconds = 0;
-        handler.postDelayed(visibilityCheckRunnable, 1000);
+        visibilityCheckElapsedMs = 0;
+        handler.postDelayed(visibilityCheckRunnable, 500);
     }
 
     @Override
