@@ -21,6 +21,31 @@
 </head>
 <body class="theme-white">
   <div class="glow-bg"></div>
+
+  <!-- Website Lock Overlay -->
+  <div id="website-lock-overlay" class="lock-overlay">
+    <div class="lock-card">
+      <div class="lock-icon-box">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <h2>Private Control Panel</h2>
+      <p>Please enter the security password to access this system.</p>
+      <form id="lock-form">
+        <div class="lock-input-group">
+          <input type="password" id="website-password-input" placeholder="Enter password..." autocomplete="current-password" required>
+          <button type="button" id="toggle-web-pass-btn" class="toggle-pass-visibility">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+        <div id="lock-error-msg" class="lock-error" style="display: none;">
+          <i class="fa-solid fa-circle-exclamation"></i> Incorrect password! Please try again.
+        </div>
+        <button type="submit" class="lock-submit-btn">
+          <i class="fa-solid fa-unlock"></i> Unlock Dashboard
+        </button>
+      </form>
+    </div>
+  </div>
   
   <!-- Sidebar Navigation -->
   <nav class="sidebar">

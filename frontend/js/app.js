@@ -86,6 +86,62 @@ const giftsEmptyMsg = document.getElementById('gifts-empty-msg');
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
+  const isUnlocked = sessionStorage.getItem('website_unlocked') === 'true';
+  const lockOverlay = document.getElementById('website-lock-overlay');
+  
+  if (isUnlocked) {
+    if (lockOverlay) lockOverlay.classList.add('hidden');
+    initializeDashboard();
+  } else {
+    if (lockOverlay) lockOverlay.classList.remove('hidden');
+    setupLockOverlay();
+  }
+});
+
+function setupLockOverlay() {
+  const lockForm = document.getElementById('lock-form');
+  const websitePasswordInput = document.getElementById('website-password-input');
+  const toggleWebPassBtn = document.getElementById('toggle-web-pass-btn');
+  const lockErrorMsg = document.getElementById('lock-error-msg');
+  const lockOverlay = document.getElementById('website-lock-overlay');
+
+  if (toggleWebPassBtn && websitePasswordInput) {
+    toggleWebPassBtn.addEventListener('click', () => {
+      const isPassword = websitePasswordInput.type === 'password';
+      websitePasswordInput.type = isPassword ? 'text' : 'password';
+      const eyeIcon = toggleWebPassBtn.querySelector('i');
+      if (eyeIcon) {
+        eyeIcon.className = isPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+      }
+    });
+  }
+
+  if (lockForm) {
+    lockForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const enteredPassword = websitePasswordInput.value;
+      if (enteredPassword === 'king_abhay_7648') {
+        sessionStorage.setItem('website_unlocked', 'true');
+        if (lockOverlay) {
+          lockOverlay.classList.add('hidden');
+        }
+        initializeDashboard();
+      } else {
+        if (lockErrorMsg) {
+          lockErrorMsg.style.display = 'flex';
+          lockErrorMsg.style.animation = 'none';
+          setTimeout(() => {
+            lockErrorMsg.style.animation = '';
+          }, 10);
+        }
+        websitePasswordInput.value = '';
+        websitePasswordInput.focus();
+      }
+    });
+  }
+}
+
+function initializeDashboard() {
   // Populate settings form inputs with current config
   serverUrlInput.value = config.serverUrl;
   adminTokenInput.value = config.adminToken;
@@ -182,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start polling backend for status updates
   checkStatus();
   pollingInterval = setInterval(checkStatus, 3000);
-});
+}
 
 // Modal Logic
 function openModal() {
