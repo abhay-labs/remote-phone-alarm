@@ -488,9 +488,38 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(warningIntent);
                 return;
             }
+
+            // Check and request Usage Access permission if not granted
+            if (!isUsageAccessGranted()) {
+                requestUsageAccessPermission();
+                return;
+            }
         }
         
         updateAdminUI();
+    }
+
+    private boolean isUsageAccessGranted() {
+        try {
+            android.app.AppOpsManager appOps = (android.app.AppOpsManager) getSystemService(Context.APP_OPS_SERVICE);
+            int mode = appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, 
+                    android.os.Process.myUid(), getPackageName());
+            return (mode == android.app.AppOpsManager.MODE_ALLOWED);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void requestUsageAccessPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            Toast.makeText(this, "Please enable Usage Access for Princess Guardian to protect Device Admin settings! 🔒", Toast.LENGTH_LONG).show();
+            try {
+                Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                startActivity(intent);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private void updateAdminUI() {

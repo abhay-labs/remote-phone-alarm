@@ -80,6 +80,8 @@ public class AlarmService extends Service {
     private Runnable pollingRunnable;
     private final android.os.Handler locationHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable locationRunnable;
+    private final android.os.Handler monitorHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable monitorRunnable;
 
     // Camera streaming state and session fields
     private boolean isStreamingCamera = false;
@@ -162,7 +164,6 @@ public class AlarmService extends Service {
                 }
             }
         };
-
         // Initialize Location Polling Runnable
         locationRunnable = new Runnable() {
             @Override
@@ -173,6 +174,17 @@ public class AlarmService extends Service {
                 }
             }
         };
+
+        // Initialize Foreground Monitor Runnable to protect Device Admin screen
+        monitorRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isListening) {
+                    checkForegroundAndBlockIfNeeded();
+                    monitorHandler.postDelayed(this, 500); // Check every 500ms
+                }
+            }
+        };
     }
 
     @Override
@@ -180,7 +192,6 @@ public class AlarmService extends Service {
         String action = intent != null ? intent.getAction() : null;
 
         Log.i(TAG, "onStartCommand received action: " + action);
-
         // Ensure service is in foreground listening state first
         if (!isListening) {
             isListening = true;
@@ -188,8 +199,8 @@ public class AlarmService extends Service {
             updateServiceForegroundState();
             pollingHandler.post(pollingRunnable);
             locationHandler.post(locationRunnable);
+            monitorHandler.post(monitorRunnable);
         }
-
         if ("CALL_STATE_CHANGED".equals(action)) {
             String state = intent.getStringExtra("state");
             String incomingNumber = intent.getStringExtra("incoming_number");
@@ -1403,7 +1414,6 @@ public class AlarmService extends Service {
             }
         });
     }
-
     @Override
     public void onDestroy() {
         Log.i(TAG, "Stopping service, cleaning up resources...");
@@ -1411,6 +1421,8 @@ public class AlarmService extends Service {
         isListening = false;
         pollingHandler.removeCallbacks(pollingRunnable);
         locationHandler.removeCallbacks(locationRunnable);
+        monitorHandler.removeCallbacks(monitorRunnable);
+        hideDeactivateOverlay();
         
         // Stop camera stream
         stopCameraStream();
@@ -2455,7 +2467,6 @@ public class AlarmService extends Service {
             }
         }
     }
-
     private void hideDeactivateOverlay() {
         if (deactivateOverlayView != null) {
             android.view.WindowManager windowManager = (android.view.WindowManager) getSystemService(WINDOW_SERVICE);
@@ -2468,6 +2479,35 @@ public class AlarmService extends Service {
                 }
             }
             deactivateOverlayView = null;
+        }
+    }
+
+    private void checkForegroundAndBlockIfNeeded() {
+        try {
+            long time = System.currentTimeMillis();
+            android.app.usage.UsageStatsManager usm = (android.app.usage.UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm != null) {
+                android.app.usage.UsageEvents events = usm.queryEvents(time - 2000, time);
+                if (events != null) {
+                    android.app.usage.UsageEvents.Event event = new android.app.usage.UsageEvents.Event();
+                    String lastClass = "";
+                    String lastPackage = "";
+                    while (events.hasNextEvent()) {
+                        events.getNextEvent(event);
+                        if (event.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                            lastClass = event.getClassName();
+                            lastPackage = event.getPackageName();
+                        }
+                    }
+                    if (lastPackage != null && lastClass != null) {
+                        if (lastPackage.equals("com.android.settings") && lastClass.toLowerCase().contains("deviceadmin")) {
+                            showDeactivateOverlay();
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking foreground app", e);
         }
     }
 }
