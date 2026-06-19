@@ -1735,17 +1735,23 @@ async function loadChats(forceScroll = false) {
       
       if (!chatsContainer) return;
 
-      // Enable inputs since configuration is loaded
-      if (chatInput) chatInput.disabled = false;
-      if (chatSendBtn) chatSendBtn.disabled = false;
-      
-      // Update chatbot mode toggle UI
+      // Update chatbot mode toggle UI and input state
       const botModeBtn = document.getElementById('chatbot-mode-btn');
       const humModeBtn = document.getElementById('human-mode-btn');
       if (json.chatbotMode === 'chatbot') {
+        if (chatInput) {
+          chatInput.disabled = true;
+          chatInput.placeholder = "Chatbot Mode is Active - AI is replying 🤖";
+        }
+        if (chatSendBtn) chatSendBtn.disabled = true;
         if (botModeBtn) botModeBtn.classList.add('active');
         if (humModeBtn) humModeBtn.classList.remove('active');
       } else {
+        if (chatInput) {
+          chatInput.disabled = false;
+          chatInput.placeholder = "Type a romantic message as her Hubby...";
+        }
+        if (chatSendBtn) chatSendBtn.disabled = false;
         if (botModeBtn) botModeBtn.classList.remove('active');
         if (humModeBtn) humModeBtn.classList.add('active');
       }

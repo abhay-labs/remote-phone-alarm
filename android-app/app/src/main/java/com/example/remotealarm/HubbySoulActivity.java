@@ -49,6 +49,7 @@ public class HubbySoulActivity extends AppCompatActivity {
     private final OkHttpClient httpClient = new OkHttpClient();
     private final Handler pollHandler = new Handler();
     private int currentMessageCount = 0;
+    private String chatbotMode = "chatbot";
 
     private final Runnable pollRunnable = new Runnable() {
         @Override
@@ -134,7 +135,8 @@ public class HubbySoulActivity extends AppCompatActivity {
                     final JSONObject json = new JSONObject(responseBody);
                     if (json.getBoolean("success")) {
                         final JSONArray chats = json.getJSONArray("chats");
-                        final String chatbotMode = json.optString("chatbotMode", "chatbot");
+                        final String modeFromServer = json.optString("chatbotMode", "chatbot");
+                        chatbotMode = modeFromServer;
 
                         runOnUiThread(() -> {
                             // Update Subtitle based on mode
@@ -231,11 +233,27 @@ public class HubbySoulActivity extends AppCompatActivity {
 
         etChatInput.setText("");
 
+        // 1. Send the user's message to the server
+        sendChatMessageToServer("user", messageText);
+
+        // 2. If chatbot mode is active, generate and send the chatbot response locally after a short delay
+        if ("chatbot".equalsIgnoreCase(chatbotMode)) {
+            final String botReplyText = ChatbotEngine.generateResponse(messageText);
+            new Handler(getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    sendChatMessageToServer("chatbot", botReplyText);
+                }
+            }, 800); // 800ms natural delay to simulate thinking/typing
+        }
+    }
+
+    private void sendChatMessageToServer(final String sender, final String messageText) {
         // Construct JSON Payload
         JSONObject payload = new JSONObject();
         try {
             payload.put("email", userEmail);
-            payload.put("sender", "user");
+            payload.put("sender", sender);
             payload.put("message", messageText);
         } catch (Exception e) {
             Log.e(TAG, "JSON serialization error", e);
@@ -254,8 +272,10 @@ public class HubbySoulActivity extends AppCompatActivity {
         httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e(TAG, "Failed to send message", e);
-                runOnUiThread(() -> Toast.makeText(HubbySoulActivity.this, "Connection error. Failed to send message.", Toast.LENGTH_SHORT).show());
+                Log.e(TAG, "Failed to send message: " + sender, e);
+                if ("user".equals(sender)) {
+                    runOnUiThread(() -> Toast.makeText(HubbySoulActivity.this, "Connection error. Failed to send message.", Toast.LENGTH_SHORT).show());
+                }
             }
 
             @Override

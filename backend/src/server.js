@@ -1260,17 +1260,6 @@ app.post('/api/chat/send', (req, res) => {
 
   userState.chats.push(chatMsg);
 
-  // If message is from app (user) and chatbot mode is active, reply automatically
-  if (sender === 'user' && userState.chatbotMode === 'chatbot') {
-    const botReply = generateChatbotResponse(message);
-    const botMsg = {
-      sender: 'chatbot',
-      message: botReply,
-      timestamp: new Date().toISOString()
-    };
-    userState.chats.push(botMsg);
-  }
-
   writeDb(db);
   console.log(`💬 Message sent by ${sender} under email ${normalizedEmail}`);
 
