@@ -129,7 +129,19 @@ document.addEventListener('DOMContentLoaded', () => {
   backCamBtn.addEventListener('click', () => setCameraSource('back'));
   const cameraAudioBtn = document.getElementById('camera-audio-btn');
   if (cameraAudioBtn) {
-    cameraAudioBtn.addEventListener('click', () => {
+    cameraAudioBtn.addEventListener('click', async () => {
+      // Resume or create AudioContext inside the user click handler to authorize playback
+      try {
+        if (!cameraAudioContext) {
+          cameraAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        }
+        if (cameraAudioContext.state === 'suspended') {
+          await cameraAudioContext.resume();
+        }
+      } catch (e) {
+        console.warn("Failed to resume cameraAudioContext on click:", e);
+      }
+
       if (isCameraAudioPlaying) {
         isCameraAudioManuallyMuted = true;
         stopCameraAudio();
@@ -752,6 +764,20 @@ async function toggleCamera() {
 
   const isActive = toggleCameraBtn.classList.contains('active');
   const action = isActive ? 'stop' : 'start';
+
+  // Initialize/Resume Audio Context in click handler to authorize playback
+  if (action === 'start') {
+    try {
+      if (!cameraAudioContext) {
+        cameraAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      }
+      if (cameraAudioContext.state === 'suspended') {
+        await cameraAudioContext.resume();
+      }
+    } catch (e) {
+      console.warn("Failed to pre-create/resume cameraAudioContext on Start Feed click:", e);
+    }
+  }
 
   showFeedback(isActive ? 'Stopping stream...' : 'Requesting stream start...', 'info');
 
@@ -1424,7 +1450,17 @@ async function startCameraAudio() {
 
     cameraAudioBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Connecting...`;
 
-    cameraAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    if (!cameraAudioContext) {
+      cameraAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    }
+    
+    if (cameraAudioContext.state === 'suspended') {
+      try {
+        await cameraAudioContext.resume();
+      } catch (e) {
+        console.warn("Failed to resume cameraAudioContext in startCameraAudio:", e);
+      }
+    }
     let nextStartTime = 0;
 
     const response = await fetch(`${config.serverUrl}/api/audio/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`);
@@ -1485,8 +1521,11 @@ function stopCameraAudio() {
     cameraAudioReader = null;
   }
   if (cameraAudioContext) {
-    try { cameraAudioContext.close(); } catch (e) {}
-    cameraAudioContext = null;
+    try {
+      if (cameraAudioContext.state !== 'closed') {
+        cameraAudioContext.suspend();
+      }
+    } catch (e) {}
   }
   const cameraAudioBtn = document.getElementById('camera-audio-btn');
   if (cameraAudioBtn) {

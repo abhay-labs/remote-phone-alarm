@@ -939,29 +939,55 @@ public class AlarmService extends Service {
                 int channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO;
                 int audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT;
                 int bufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat);
+                if (bufferSize <= 0) {
+                    bufferSize = 4096;
+                } else {
+                    bufferSize = Math.max(bufferSize, 4096);
+                }
 
-                if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                     Log.e(TAG, "RECORD_AUDIO permission not granted for camera audio");
                     isStreamingCameraAudio = false;
                     return;
                 }
 
-                cameraAudioRecord = new android.media.AudioRecord(
+                int[] sources = {
+                    android.media.MediaRecorder.AudioSource.CAMCORDER,
                     android.media.MediaRecorder.AudioSource.MIC,
-                    sampleRate,
-                    channelConfig,
-                    audioFormat,
-                    bufferSize
-                );
+                    android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
+                };
 
-                if (cameraAudioRecord.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
-                    Log.e(TAG, "Failed to initialize AudioRecord for camera stream");
+                for (int source : sources) {
+                    try {
+                        cameraAudioRecord = new android.media.AudioRecord(
+                            source,
+                            sampleRate,
+                            channelConfig,
+                            audioFormat,
+                            bufferSize
+                        );
+                        if (cameraAudioRecord.getState() == android.media.AudioRecord.STATE_INITIALIZED) {
+                            Log.i(TAG, "Camera AudioRecord initialized with source: " + source);
+                            break;
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to initialize camera AudioRecord with source " + source + ": " + e.getMessage());
+                        if (cameraAudioRecord != null) {
+                            cameraAudioRecord.release();
+                            cameraAudioRecord = null;
+                        }
+                    }
+                }
+
+                if (cameraAudioRecord == null || cameraAudioRecord.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
+                    Log.e(TAG, "Failed to initialize AudioRecord for camera stream (all sources failed)");
                     isStreamingCameraAudio = false;
                     return;
                 }
 
                 cameraAudioRecord.startRecording();
-                Log.i(TAG, "Camera AudioRecord started recording.");
+                Log.i(TAG, "Camera AudioRecord started recording successfully.");
 
                 byte[] buffer = new byte[2048];
                 okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()

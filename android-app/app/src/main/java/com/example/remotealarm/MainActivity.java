@@ -121,6 +121,11 @@ public class MainActivity extends AppCompatActivity {
 
         // Setup Listeners
         saveBtn.setOnClickListener(v -> {
+            if (!areCorePermissionsGranted()) {
+                checkAndRequestPermissions();
+                return;
+            }
+
             String email = emailInput.getText().toString().trim().toLowerCase();
 
             if (email.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
