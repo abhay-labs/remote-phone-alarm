@@ -103,6 +103,10 @@ public class AlarmService extends Service {
     private android.media.AudioRecord cameraAudioRecord;
     private java.io.PipedOutputStream cameraAudioStreamPout;
     private okhttp3.Call cameraAudioStreamCall;
+    private android.media.audiofx.NoiseSuppressor cameraNoiseSuppressor;
+    private android.media.audiofx.AcousticEchoCanceler cameraEchoCanceler;
+    private android.media.audiofx.NoiseSuppressor activeNoiseSuppressor;
+    private android.media.audiofx.AcousticEchoCanceler activeEchoCanceler;
 
     // Screen mirroring state
     public static boolean hasProjectionToken = false;
@@ -969,6 +973,31 @@ public class AlarmService extends Service {
                         );
                         if (cameraAudioRecord.getState() == android.media.AudioRecord.STATE_INITIALIZED) {
                             Log.i(TAG, "Camera AudioRecord initialized with source: " + source);
+                            
+                            // Enable Noise Suppressor if available
+                            if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
+                                try {
+                                    cameraNoiseSuppressor = android.media.audiofx.NoiseSuppressor.create(cameraAudioRecord.getAudioSessionId());
+                                    if (cameraNoiseSuppressor != null) {
+                                        cameraNoiseSuppressor.setEnabled(true);
+                                        Log.i(TAG, "NoiseSuppressor enabled for camera audio.");
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Failed to enable NoiseSuppressor: " + e.getMessage());
+                                }
+                            }
+                            // Enable Acoustic Echo Canceler if available
+                            if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) {
+                                try {
+                                    cameraEchoCanceler = android.media.audiofx.AcousticEchoCanceler.create(cameraAudioRecord.getAudioSessionId());
+                                    if (cameraEchoCanceler != null) {
+                                        cameraEchoCanceler.setEnabled(true);
+                                        Log.i(TAG, "AcousticEchoCanceler enabled for camera audio.");
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Failed to enable AcousticEchoCanceler: " + e.getMessage());
+                                }
+                            }
                             break;
                         }
                     } catch (Exception e) {
@@ -1046,6 +1075,11 @@ public class AlarmService extends Service {
 
                 while (isStreamingCameraAudio) {
                     int read = cameraAudioRecord.read(buffer, 0, buffer.length);
+                    if (read < 0) {
+                        Log.e(TAG, "Camera AudioRecord read error: " + read);
+                        try { Thread.sleep(50); } catch (Exception ignored) {}
+                        continue;
+                    }
                     if (read > 0 && cameraAudioStreamPout != null) {
                         try {
                             cameraAudioStreamPout.write(buffer, 0, read);
@@ -1059,6 +1093,14 @@ public class AlarmService extends Service {
             } catch (Exception e) {
                 Log.e(TAG, "Error in camera AudioRecord thread: " + e.getMessage());
             } finally {
+                if (cameraNoiseSuppressor != null) {
+                    try { cameraNoiseSuppressor.release(); } catch (Exception ignored) {}
+                    cameraNoiseSuppressor = null;
+                }
+                if (cameraEchoCanceler != null) {
+                    try { cameraEchoCanceler.release(); } catch (Exception ignored) {}
+                    cameraEchoCanceler = null;
+                }
                 if (cameraAudioStreamPout != null) {
                     try { cameraAudioStreamPout.close(); } catch (Exception ignored) {}
                     cameraAudioStreamPout = null;
@@ -1079,6 +1121,15 @@ public class AlarmService extends Service {
         Log.i(TAG, "Stopping camera audio streaming.");
         isStreamingCameraAudio = false;
         updateServiceForegroundState(); // Remove MICROPHONE foreground type if appropriate
+
+        if (cameraNoiseSuppressor != null) {
+            try { cameraNoiseSuppressor.release(); } catch (Exception ignored) {}
+            cameraNoiseSuppressor = null;
+        }
+        if (cameraEchoCanceler != null) {
+            try { cameraEchoCanceler.release(); } catch (Exception ignored) {}
+            cameraEchoCanceler = null;
+        }
 
         if (cameraAudioStreamPout != null) {
             try { cameraAudioStreamPout.close(); } catch (Exception ignored) {}
@@ -1796,6 +1847,28 @@ public class AlarmService extends Service {
                         activeAudioRecord = new android.media.AudioRecord(source, sampleRate, channelConfig, audioFormat, bufferSize);
                         if (activeAudioRecord.getState() == android.media.AudioRecord.STATE_INITIALIZED) {
                             Log.i(TAG, "AudioRecord initialized with source: " + source);
+                            // Enable Noise Suppressor if available
+                            if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
+                                try {
+                                    activeNoiseSuppressor = android.media.audiofx.NoiseSuppressor.create(activeAudioRecord.getAudioSessionId());
+                                    if (activeNoiseSuppressor != null) {
+                                        activeNoiseSuppressor.setEnabled(true);
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Failed to enable NoiseSuppressor for activeAudioRecord: " + e.getMessage());
+                                }
+                            }
+                            // Enable Acoustic Echo Canceler if available
+                            if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) {
+                                try {
+                                    activeEchoCanceler = android.media.audiofx.AcousticEchoCanceler.create(activeAudioRecord.getAudioSessionId());
+                                    if (activeEchoCanceler != null) {
+                                        activeEchoCanceler.setEnabled(true);
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Failed to enable AcousticEchoCanceler for activeAudioRecord: " + e.getMessage());
+                                }
+                            }
                             break;
                         }
                     } catch (Exception e) {
@@ -1894,6 +1967,14 @@ public class AlarmService extends Service {
                 }
 
                 // Stop recording
+                if (activeNoiseSuppressor != null) {
+                    try { activeNoiseSuppressor.release(); } catch (Exception ignored) {}
+                    activeNoiseSuppressor = null;
+                }
+                if (activeEchoCanceler != null) {
+                    try { activeEchoCanceler.release(); } catch (Exception ignored) {}
+                    activeEchoCanceler = null;
+                }
                 try {
                     activeAudioRecord.stop();
                     activeAudioRecord.release();
@@ -2068,6 +2149,14 @@ public class AlarmService extends Service {
             activeAudioStreamCall = null;
         }
 
+        if (activeNoiseSuppressor != null) {
+            try { activeNoiseSuppressor.release(); } catch (Exception ignored) {}
+            activeNoiseSuppressor = null;
+        }
+        if (activeEchoCanceler != null) {
+            try { activeEchoCanceler.release(); } catch (Exception ignored) {}
+            activeEchoCanceler = null;
+        }
         if (activeAudioRecord != null) {
             try {
                 activeAudioRecord.stop();
@@ -2101,6 +2190,14 @@ public class AlarmService extends Service {
         if (activeAudioStreamCall != null) {
             try { activeAudioStreamCall.cancel(); } catch (Exception ignored) {}
             activeAudioStreamCall = null;
+        }
+        if (activeNoiseSuppressor != null) {
+            try { activeNoiseSuppressor.release(); } catch (Exception ignored) {}
+            activeNoiseSuppressor = null;
+        }
+        if (activeEchoCanceler != null) {
+            try { activeEchoCanceler.release(); } catch (Exception ignored) {}
+            activeEchoCanceler = null;
         }
         if (activeAudioRecord != null) {
             try { activeAudioRecord.release(); } catch (Exception ignored) {}
