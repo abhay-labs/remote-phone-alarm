@@ -23,6 +23,9 @@ public class DeactivateAuthActivity extends AppCompatActivity {
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponent;
 
+    private boolean isVerified = false;
+    private boolean isCancelled = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -48,6 +51,7 @@ public class DeactivateAuthActivity extends AppCompatActivity {
         btnConfirm.setOnClickListener(v -> {
             String nameInput = etHubbyName.getText().toString().trim();
             if (nameInput.equalsIgnoreCase("myloveabhay")) {
+                isVerified = true;
                 Toast.makeText(this, "Verification Successful! 💖", Toast.LENGTH_SHORT).show();
                 
                 // Deactivate device admin programmatically
@@ -67,6 +71,18 @@ public class DeactivateAuthActivity extends AppCompatActivity {
         });
 
         btnCancel.setOnClickListener(v -> {
+            isCancelled = true;
+            
+            // Redirect to App Details settings to clear the deactivation dialog
+            try {
+                Intent settingsIntent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                settingsIntent.setData(Uri.parse("package:" + getPackageName()));
+                settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(settingsIntent);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
             // Redirect to home screen to close/hide Settings app
             Intent homeIntent = new Intent(Intent.ACTION_MAIN);
             homeIntent.addCategory(Intent.CATEGORY_HOME);
@@ -74,6 +90,35 @@ public class DeactivateAuthActivity extends AppCompatActivity {
             startActivity(homeIntent);
             finish();
         });
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (!isVerified && !isCancelled) {
+            // User is trying to bypass the popup (e.g. via Home or Recents keys)
+            // Redirect to App Details settings to clear the deactivation dialog
+            try {
+                Intent settingsIntent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                settingsIntent.setData(Uri.parse("package:" + getPackageName()));
+                settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(settingsIntent);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            
+            // Redirect to home screen
+            try {
+                Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                homeIntent.addCategory(Intent.CATEGORY_HOME);
+                homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(homeIntent);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            
+            finish();
+        }
     }
 
     @Override
