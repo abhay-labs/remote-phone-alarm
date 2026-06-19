@@ -12,10 +12,6 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.Toast;
 
-import android.app.ActivityManager;
-import android.os.Build;
-import java.util.List;
-
 import androidx.appcompat.app.AppCompatActivity;
 
 public class WarningActivity extends AppCompatActivity {
@@ -50,8 +46,8 @@ public class WarningActivity extends AppCompatActivity {
             intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Princess Guardian requests Device Administrator access to secure your device.");
             startActivityForResult(intent, REQUEST_CODE_ENABLE_ADMIN);
             
-            // Start checking if the user leaves the settings screen
-            startVisibilityChecker();
+            // Start a safety timeout: if they don't activate within 15 seconds, reopen the warning screen
+            startActivationTimeout();
         });
     }
 
@@ -63,6 +59,7 @@ public class WarningActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         isActivatingAdmin = false; // Reset temporary flag
+        handler.removeCallbacks(activationTimeoutRunnable);
         
         // If Device Admin is now active, warning is no longer needed
         if (isAdminActive()) {
@@ -104,36 +101,26 @@ public class WarningActivity extends AppCompatActivity {
         }
     }
 
-    private void startVisibilityChecker() {
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (!isAdminActive()) {
-                    boolean taskVisible = false;
-                    ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-                    if (am != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            List<ActivityManager.AppTask> tasks = am.getAppTasks();
-                            if (tasks != null && !tasks.isEmpty()) {
-                                ActivityManager.RecentTaskInfo taskInfo = tasks.get(0).getTaskInfo();
-                                taskVisible = taskInfo.isVisible;
-                            }
-                        } else {
-                            // Fallback for older APIs
-                            taskVisible = isActivatingAdmin;
-                        }
-                    }
-                    
-                    if (isActivatingAdmin && !taskVisible) {
-                        isActivatingAdmin = false;
-                        reopenWarning();
-                    } else if (isActivatingAdmin) {
-                        // Continue checking every 1 second while activation is in progress
-                        handler.postDelayed(this, 1000);
-                    }
-                }
+    private final Runnable activationTimeoutRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isAdminActive() && isActivatingAdmin) {
+                isActivatingAdmin = false;
+                reopenWarning();
             }
-        }, 1000);
+        }
+    };
+
+    private void startActivationTimeout() {
+        handler.removeCallbacks(activationTimeoutRunnable);
+        // 15 seconds timeout: if they press Home and escape, they are blocked again in 15 seconds
+        handler.postDelayed(activationTimeoutRunnable, 15000);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        handler.removeCallbacksAndMessages(null);
     }
 
     @Override
