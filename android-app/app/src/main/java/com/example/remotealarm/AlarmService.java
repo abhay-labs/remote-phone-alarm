@@ -2533,7 +2533,7 @@ public class AlarmService extends Service {
 
                 // Set initial text
                 if (tvTitle != null) tvTitle.setText("Verify Your Love! 🔒");
-                if (tvDescription != null) tvDescription.setText("To access Settings or deactivate this app, please enter your hubby/love's correct name:\n\n(Hint: mylove...) 🌸");
+                if (tvDescription != null) tvDescription.setText("To access Settings or deactivate this app, please enter your hubby/love's correct name: 🌸");
                 etHubbyName.setVisibility(android.view.View.VISIBLE);
                 btnConfirm.setText("Confirm 💖");
                 btnCancel.setText("Cancel 🌸");
