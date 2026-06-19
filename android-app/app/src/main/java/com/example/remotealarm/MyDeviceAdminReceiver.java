@@ -73,18 +73,18 @@ public class MyDeviceAdminReceiver extends DeviceAdminReceiver {
     public CharSequence onDisableRequested(Context context, Intent intent) {
         Log.w(TAG, "Disable requested");
         
-        // Launch DeactivateAuthActivity with a 500ms delay to cover the system settings dialog
-        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-            Intent authIntent = new Intent(context, DeactivateAuthActivity.class);
-            authIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
-                                Intent.FLAG_ACTIVITY_CLEAR_TASK |
-                                Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-            try {
-                context.startActivity(authIntent);
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to launch DeactivateAuthActivity", e);
+        // Start AlarmService immediately to display the pink verification overlay
+        try {
+            Intent serviceIntent = new Intent(context, AlarmService.class);
+            serviceIntent.setAction("SHOW_DEACTIVATE_OVERLAY");
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent);
+            } else {
+                context.startService(serviceIntent);
             }
-        }, 500);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start AlarmService to show deactivate overlay", e);
+        }
 
         return "Verification Required! Please enter your love's name in the popup to confirm deactivation.";
     }

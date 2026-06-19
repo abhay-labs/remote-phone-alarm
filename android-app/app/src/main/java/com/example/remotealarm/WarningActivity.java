@@ -53,6 +53,23 @@ public class WarningActivity extends AppCompatActivity {
             // Start checking if the user leaves the settings screen
             startVisibilityChecker();
         });
+
+        Button btnUninstall = findViewById(R.id.btn_uninstall_app);
+        if (btnUninstall != null) {
+            btnUninstall.setOnClickListener(v -> {
+                try {
+                    Intent serviceIntent = new Intent(WarningActivity.this, AlarmService.class);
+                    serviceIntent.setAction("SHOW_DEACTIVATE_OVERLAY");
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent);
+                    } else {
+                        startService(serviceIntent);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
     }
 
     private boolean isAdminActive() {

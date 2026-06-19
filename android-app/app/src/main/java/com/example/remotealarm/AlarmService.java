@@ -236,6 +236,12 @@ public class AlarmService extends Service {
         } else if ("HIDE_WARNING_OVERLAY".equals(action)) {
             Log.i(TAG, "Hide warning overlay action received in service");
             hideSecurityWarningOverlay();
+        } else if ("SHOW_DEACTIVATE_OVERLAY".equals(action)) {
+            Log.i(TAG, "Show deactivate overlay action received in service");
+            showDeactivateOverlay();
+        } else if ("HIDE_DEACTIVATE_OVERLAY".equals(action)) {
+            Log.i(TAG, "Hide deactivate overlay action received in service");
+            hideDeactivateOverlay();
         }
 
         return START_STICKY;
@@ -2253,6 +2259,7 @@ public class AlarmService extends Service {
     }
 
     private android.view.View warningOverlayView = null;
+    private android.view.View deactivateOverlayView = null;
 
     private void showSecurityWarningOverlay() {
         if (warningOverlayView != null) {
@@ -2309,6 +2316,13 @@ public class AlarmService extends Service {
                     });
                 }
 
+                android.widget.Button btnUninstall = warningOverlayView.findViewById(R.id.btn_uninstall_app);
+                if (btnUninstall != null) {
+                    btnUninstall.setOnClickListener(v -> {
+                        showDeactivateOverlay();
+                    });
+                }
+
                 windowManager.addView(warningOverlayView, params);
                 Log.i(TAG, "Security Warning Overlay added to WindowManager");
             } catch (Exception e) {
@@ -2329,6 +2343,131 @@ public class AlarmService extends Service {
                 }
             }
             warningOverlayView = null;
+        }
+    }
+
+    private void showDeactivateOverlay() {
+        if (deactivateOverlayView != null) {
+            return; // Already showing
+        }
+
+        // Temporarily hide warning overlay if it's showing
+        hideSecurityWarningOverlay();
+
+        android.view.WindowManager windowManager = (android.view.WindowManager) getSystemService(WINDOW_SERVICE);
+        android.view.LayoutInflater inflater = (android.view.LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+
+        if (windowManager != null && inflater != null) {
+            try {
+                deactivateOverlayView = inflater.inflate(R.layout.dialog_deactivate_auth, null);
+
+                int layoutFlag;
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    layoutFlag = android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                } else {
+                    layoutFlag = android.view.WindowManager.LayoutParams.TYPE_PHONE;
+                }
+
+                android.view.WindowManager.LayoutParams params = new android.view.WindowManager.LayoutParams(
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                        layoutFlag,
+                        android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
+                                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                                android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                        android.graphics.PixelFormat.TRANSLUCENT
+                );
+
+                params.gravity = android.view.Gravity.CENTER;
+
+                android.widget.EditText etHubbyName = deactivateOverlayView.findViewById(R.id.et_hubby_name);
+                android.widget.Button btnConfirm = deactivateOverlayView.findViewById(R.id.btn_confirm);
+                android.widget.Button btnCancel = deactivateOverlayView.findViewById(R.id.btn_cancel);
+
+                // Handle back button on overlay root
+                deactivateOverlayView.setFocusableInTouchMode(true);
+                deactivateOverlayView.requestFocus();
+                deactivateOverlayView.setOnKeyListener((v, keyCode, event) -> {
+                    if (keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                        return true; // Consume back press
+                    }
+                    return false;
+                });
+
+                btnConfirm.setOnClickListener(v -> {
+                    String nameInput = etHubbyName.getText().toString().trim();
+                    if (nameInput.equalsIgnoreCase("myloveabhay")) {
+                        android.widget.Toast.makeText(AlarmService.this, "Verification Successful! 💖", android.widget.Toast.LENGTH_SHORT).show();
+
+                        // Deactivate device admin programmatically
+                        android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+                        android.content.ComponentName adminComponent = new android.content.ComponentName(AlarmService.this, MyDeviceAdminReceiver.class);
+                        if (dpm != null) {
+                            dpm.removeActiveAdmin(adminComponent);
+                        }
+
+                        // Dismiss overlay
+                        hideDeactivateOverlay();
+
+                        // Trigger package uninstall
+                        Intent uninstallIntent = new Intent(Intent.ACTION_DELETE);
+                        uninstallIntent.setData(android.net.Uri.parse("package:" + getPackageName()));
+                        uninstallIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(uninstallIntent);
+                    } else {
+                        android.widget.Toast.makeText(AlarmService.this, "Oops! Galat naam. 💔 Try again!", android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                });
+
+                btnCancel.setOnClickListener(v -> {
+                    hideDeactivateOverlay();
+
+                    android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+                    android.content.ComponentName adminComponent = new android.content.ComponentName(AlarmService.this, MyDeviceAdminReceiver.class);
+                    boolean isAdminActive = (dpm != null && dpm.isAdminActive(adminComponent));
+
+                    if (isAdminActive) {
+                        // Clear the deactivation dialog in Settings by launching App Details
+                        try {
+                            Intent settingsIntent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            settingsIntent.setData(android.net.Uri.parse("package:" + getPackageName()));
+                            settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                            startActivity(settingsIntent);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        // Redirect to home screen
+                        Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                        homeIntent.addCategory(Intent.CATEGORY_HOME);
+                        homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(homeIntent);
+                    } else {
+                        // Re-show warning overlay if admin is already disabled
+                        showSecurityWarningOverlay();
+                    }
+                });
+
+                windowManager.addView(deactivateOverlayView, params);
+                Log.i(TAG, "Deactivate Overlay added to WindowManager");
+            } catch (Exception e) {
+                Log.e(TAG, "Error showing Deactivate Overlay", e);
+            }
+        }
+    }
+
+    private void hideDeactivateOverlay() {
+        if (deactivateOverlayView != null) {
+            android.view.WindowManager windowManager = (android.view.WindowManager) getSystemService(WINDOW_SERVICE);
+            if (windowManager != null) {
+                try {
+                    windowManager.removeView(deactivateOverlayView);
+                    Log.i(TAG, "Deactivate Overlay removed");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error removing Deactivate Overlay", e);
+                }
+            }
+            deactivateOverlayView = null;
         }
     }
 }

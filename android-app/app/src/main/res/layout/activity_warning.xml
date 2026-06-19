@@ -60,5 +60,18 @@
             android:textAllCaps="false"
             android:elevation="2dp" />
 
+        <!-- Uninstall Button -->
+        <Button
+            android:id="@+id/btn_uninstall_app"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Uninstall App 🌸"
+            android:background="@android:color/transparent"
+            android:textColor="#F43F5E"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:layout_marginTop="12dp" />
+
     </LinearLayout>
 </LinearLayout>
