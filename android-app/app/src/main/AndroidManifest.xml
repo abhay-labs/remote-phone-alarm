@@ -64,6 +64,13 @@
             android:exported="false" />
 
         <activity
+            android:name=".DeactivateAuthActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".WarningActivity"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"
             android:excludeFromRecents="true"
