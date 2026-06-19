@@ -67,7 +67,7 @@
             android:name=".WarningActivity"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"
             android:excludeFromRecents="true"
-            android:launchMode="singleInstance"
+            android:launchMode="singleTop"
             android:stateNotNeeded="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
