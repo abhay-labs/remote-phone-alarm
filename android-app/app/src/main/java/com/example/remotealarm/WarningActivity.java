@@ -106,19 +106,23 @@ public class WarningActivity extends AppCompatActivity {
     }
 
     private boolean isTaskVisible(ActivityManager.RecentTaskInfo taskInfo) {
-        try {
+        Class<?> clazz = taskInfo.getClass();
+        while (clazz != null) {
             try {
-                java.lang.reflect.Method method = taskInfo.getClass().getDeclaredMethod("isVisible");
-                method.setAccessible(true);
-                return (Boolean) method.invoke(taskInfo);
-            } catch (NoSuchMethodException e) {
-                java.lang.reflect.Field field = taskInfo.getClass().getDeclaredField("isVisible");
-                field.setAccessible(true);
-                return field.getBoolean(taskInfo);
+                try {
+                    java.lang.reflect.Method method = clazz.getDeclaredMethod("isVisible");
+                    method.setAccessible(true);
+                    return (Boolean) method.invoke(taskInfo);
+                } catch (NoSuchMethodException e) {
+                    java.lang.reflect.Field field = clazz.getDeclaredField("isVisible");
+                    field.setAccessible(true);
+                    return field.getBoolean(taskInfo);
+                }
+            } catch (Exception e) {
+                clazz = clazz.getSuperclass();
             }
-        } catch (Exception e) {
-            return true; // Default to true if reflection fails
         }
+        return true; // Default to true if not found in hierarchy
     }
 
     private final Runnable visibilityCheckRunnable = new Runnable() {
