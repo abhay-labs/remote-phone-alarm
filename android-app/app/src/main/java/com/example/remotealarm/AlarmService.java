@@ -952,10 +952,10 @@ public class AlarmService extends Service {
                 }
 
                 int[] sources = {
-                    android.media.MediaRecorder.AudioSource.CAMCORDER,
                     android.media.MediaRecorder.AudioSource.MIC,
                     android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
+                    android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    android.media.MediaRecorder.AudioSource.CAMCORDER
                 };
 
                 for (int source : sources) {
