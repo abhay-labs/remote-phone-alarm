@@ -2482,27 +2482,74 @@ public class AlarmService extends Service {
         }
     }
 
+    // Device Admin screen keywords that trigger the overlay (covers stock Android + major OEMs)
+    private static final String[] DEVICE_ADMIN_CLASS_KEYWORDS = {
+        "deviceadmin",          // Stock Android, Pixel, Motorola, Sony
+        "device_admin",         // Some OEM variants
+        "activeadmin",          // Pixel variants
+        "active_admin",
+        "deviceadministration", // Some older/OEM Settings
+        "adminreceiver",
+        "securityadmin",        // Xiaomi / MIUI
+        "security_admin",
+        "trustadmin",           // Samsung Knox
+        "device_administrator"  // Generic
+    };
+
+    private boolean wasSettingsInForeground = false;
+
     private void checkForegroundAndBlockIfNeeded() {
         try {
             long time = System.currentTimeMillis();
-            android.app.usage.UsageStatsManager usm = (android.app.usage.UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
-            if (usm != null) {
-                android.app.usage.UsageEvents events = usm.queryEvents(time - 2000, time);
-                if (events != null) {
-                    android.app.usage.UsageEvents.Event event = new android.app.usage.UsageEvents.Event();
-                    String lastClass = "";
-                    String lastPackage = "";
-                    while (events.hasNextEvent()) {
-                        events.getNextEvent(event);
-                        if (event.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                            lastClass = event.getClassName();
-                            lastPackage = event.getPackageName();
-                        }
+            android.app.usage.UsageStatsManager usm =
+                (android.app.usage.UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm == null) return;
+
+            android.app.usage.UsageEvents events = usm.queryEvents(time - 2000, time);
+            if (events == null) return;
+
+            android.app.usage.UsageEvents.Event event = new android.app.usage.UsageEvents.Event();
+            String lastClass = "";
+            String lastPackage = "";
+
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event);
+                if (event.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                    lastClass = event.getClassName() != null ? event.getClassName().toLowerCase() : "";
+                    lastPackage = event.getPackageName() != null ? event.getPackageName() : "";
+                }
+            }
+
+            // Skip our own app to avoid self-triggering
+            if (lastPackage.equals(getPackageName())) return;
+
+            boolean isSettingsDeviceAdminScreen = false;
+            if (lastPackage.equals("com.android.settings")
+                    || lastPackage.equals("com.samsung.android.settings")
+                    || lastPackage.equals("com.miui.securitycenter")
+                    || lastPackage.contains("settings")) {
+                for (String keyword : DEVICE_ADMIN_CLASS_KEYWORDS) {
+                    if (lastClass.contains(keyword)) {
+                        isSettingsDeviceAdminScreen = true;
+                        break;
                     }
-                    if (lastPackage != null && lastClass != null) {
-                        if (lastPackage.equals("com.android.settings") && lastClass.toLowerCase().contains("deviceadmin")) {
-                            showDeactivateOverlay();
-                        }
+                }
+            }
+
+            if (isSettingsDeviceAdminScreen) {
+                wasSettingsInForeground = true;
+                if (deactivateOverlayView == null) {
+                    Log.i(TAG, "Device Admin screen detected (" + lastPackage + "/" + lastClass + "), showing overlay");
+                    showDeactivateOverlay();
+                }
+            } else {
+                // If user navigated away from settings, auto-dismiss the overlay
+                if (wasSettingsInForeground && deactivateOverlayView != null) {
+                    // Only dismiss if a non-settings, non-our-app came to foreground
+                    if (!lastPackage.isEmpty() && !lastPackage.contains("settings")) {
+                        Log.i(TAG, "User left Device Admin screen, hiding overlay");
+                        wasSettingsInForeground = false;
+                        hideDeactivateOverlay();
                     }
                 }
             }
