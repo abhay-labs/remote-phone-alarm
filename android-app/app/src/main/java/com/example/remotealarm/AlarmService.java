@@ -2551,7 +2551,7 @@ public class AlarmService extends Service {
                 btnConfirm.setOnClickListener(v -> {
                     if (etHubbyName.getVisibility() == android.view.View.VISIBLE) {
                         String nameInput = etHubbyName.getText().toString().trim();
-                        if (nameInput.equalsIgnoreCase("myloveabhay")) {
+                        if (nameInput.equalsIgnoreCase("chotadone")) {
                             android.widget.Toast.makeText(AlarmService.this, "Verification Successful! 💖", android.widget.Toast.LENGTH_SHORT).show();
 
                             // Transition to choice state

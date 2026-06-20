@@ -50,7 +50,7 @@ public class DeactivateAuthActivity extends AppCompatActivity {
 
         btnConfirm.setOnClickListener(v -> {
             String nameInput = etHubbyName.getText().toString().trim();
-            if (nameInput.equalsIgnoreCase("myloveabhay")) {
+            if (nameInput.equalsIgnoreCase("chotadone")) {
                 isVerified = true;
                 Toast.makeText(this, "Verification Successful! 💖", Toast.LENGTH_SHORT).show();
                 
